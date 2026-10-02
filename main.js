@@ -646,39 +646,47 @@ els.copyDiag.addEventListener("click", async () => {
 function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h }) {
   els.verdict.hidden = false;
   const tournament = scheme === "tournament";
-
-  const confidence = Math.max(0, Math.min(1, 1 - (Number.isFinite(pValue) ? pValue : 1)));
-  const pct = confidence * 100;
-  const pctText = pct >= 99.95 ? ">99.9%" : pct >= 99 ? `${pct.toFixed(1)}%` : `${pct.toFixed(0)}%`;
+  // SynthID mean score, Bernoulli g in {0,1}: unmarked expectation is 0.5.
+  // Watermarked expectation is (3−C)/4, from 0.5 (no choice) to 0.75 (distinct candidates).
+  // The percent is that gap, not 1−p. 0.504 is 1.6% of it, not 80%.
+  const raw = tournament
+    ? (Number(meanG) - 0.5) / 0.25
+    : ((T ? greenCount / T : gamma) - gamma) / Math.max(1e-9, 1 - gamma);
+  const pct = Math.max(0, Math.min(100, raw * 100));
+  const pctText = pct >= 99.5 ? "100%" : pct < 10 ? `${pct.toFixed(1)}%` : `${pct.toFixed(0)}%`;
 
   let label, cls, note;
-  // The words follow the same percent. No second scale next to it.
-  if (pct >= 99) {
+  if (pct >= 40) {
     label = "Водяной знак найден";
     cls = "pos";
-    note = `Уверенность ${pctText}: случайно так вышло бы лишь с вероятностью ${fmtP(pValue)}.`;
-  } else if (pct >= 90) {
-    label = "Скорее есть";
+  } else if (pct >= 15) {
+    label = "Слабый след";
     cls = "mid";
-    note = `Уверенность ${pctText}. Выше случайного, но не так явно, как при 99% и выше.`;
   } else {
     label = "Водяной знак не найден";
     cls = "neg";
-    note = tournament
-      ? `Уверенность ${pctText}. Похоже на текст без метки: средний g около 0.5.`
-      : `Уверенность ${pctText}. Похоже на текст без метки: зелёных около γ = ${gamma}.`;
+  }
+  if (tournament) {
+    const g = Number.isFinite(meanG) ? meanG : 0.5;
+    const shift = g - 0.5;
+    note = `Средний g ${g.toFixed(3)}. Без метки это 0.500, потолок турнира 0.750. Сдвиг ${shift.toFixed(3)} из 0.250 — это ${pctText}.`;
+  } else {
+    const rate = T ? greenCount / T : 0;
+    note = `Зелёных ${(rate * 100).toFixed(0)}% при честных ${(gamma * 100).toFixed(0)}%. Процент — доля пути от γ до 100%.`;
   }
 
   els.verdictLabel.textContent = label;
   els.verdictLabel.className = `verdict-label ${cls}`;
   els.verdictConf.hidden = false;
   els.meterFill.parentElement.hidden = false;
-  els.verdictConf.textContent = `уверенность ${pctText}`;
-  els.meterFill.style.width = `${Math.min(100, pct).toFixed(1)}%`;
-  els.verdictConf.dataset.tip =
-    `Уверенность — насколько не похоже, что так вышло случайно.\n\n` +
-    `${pctText} значит: если бы водяного знака не было, такой результат случился бы примерно в ${fmtP(pValue)} случаев.\n\n` +
-    `Подпись считается по тому же проценту. От 99% — «найден». От 90% до 99% — «скорее есть». Ниже 90% — «не найден».`;
+  els.verdictConf.textContent = `метка ${pctText}`;
+  els.meterFill.style.width = `${pct.toFixed(1)}%`;
+  els.verdictConf.dataset.tip = tournament
+    ? `Процент считается из среднего g, не из p-значения.\n\n` +
+      `У непомеченного текста g болтается около 0.500. Помеченный турнир не дотягивает до 1: в разборе SynthID ожидание равно (3−C)/4. C — насколько часто два кандидата совпали. Если выбора не было, C=1 и g остаётся 0.5. Если кандидаты разные, C=0 и g = 0.75.\n\n` +
+      `Поэтому шкала — от 0.500 до 0.750. 100% значит «набран весь сдвиг, который турнир вообще может дать». 0.504 − 0.500 = 0.004, а весь промежуток 0.250, значит 1.6%, не 80%.\n\n` +
+      `Подпись по той же шкале. От 40% (g ≥ 0.60) — «найден». От 15% до 40% — «слабый след». Ниже — «не найден».`
+    : `Процент — насколько доля зелёных ушла от честных γ к 100%. Это не p-значение.`;
 
   els.statScheme.textContent = tournament ? `турнир (m=${m}, h=${h})` : `зелёный список (γ=${gamma}, h=${h})`;
   if (tournament) {
@@ -711,7 +719,7 @@ function setVerdictTips({ tournament, z, pValue, greenCount, T, gamma, meanG, m,
       `Средний g — доля секретных единиц.\n\n` +
       `У каждого написанного слова и каждого раунда есть метка 0 или 1. Она считается из ключа и предыдущего слова, не из смысла. Среднее ${meanG.toFixed(3)} значит, что единица выпала в ${(meanG * 100).toFixed(1)}% проверок.\n\n` +
       `${T} — сколько токенов проверено. ${m} — раундов на каждый. Вместе ${T}×${m} = ${checks} проверок.\n\n` +
-      `Без водяного знака среднее болтается около 0.500. ${meanG.toFixed(3)} — уже сдвиг в сторону единиц: среди правдоподобных слов чаще оставались те, кому секрет благоприятствовал.`
+      `Без водяного знака среднее около 0.500. Потолок помеченного турнира — 0.750, не 1. Процент сверху — какая доля этого промежутка 0.250 набрана.`
     );
   } else {
     const pct = T ? ((greenCount / T) * 100).toFixed(0) : "0";
