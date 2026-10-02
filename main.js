@@ -408,7 +408,11 @@ function handleMessage(msg) {
       if (msg.pasted) {
         outputDirty = false;
         haveGeneration = (msg.tokens?.length ?? 0) > 0;
-        els.verdictNote.textContent += " Первые токены взяты только как контекст и не подсвечены.";
+        const skip = msg.colorFrom ?? 0;
+        if (skip > 0) {
+          const head = skip === 1 ? "Первое слово не раскрашено: перед ним не из чего считать метку." : `Первые ${skip} ${skip < 5 ? "слова" : "слов"} не раскрашены: перед ними не из чего считать метку.`;
+          els.verdictNote.textContent += ` ${head}`;
+        }
         setStatus("Проверен вставленный текст.");
         updateButtons();
       }
@@ -674,7 +678,7 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h, e
   }
   if (tournament) {
     note = ready
-      ? `Средний g ${g.toFixed(3)}. Предел при m=${m} — ${ceiling.toFixed(3)}. Это ${pctText} метки.`
+      ? `Средний g ${g.toFixed(3)}. Предел при m=${m} — ${ceiling.toFixed(3)}. От предела набрано ${pctText}.`
       : `Средний g ${g.toFixed(3)}. Токенов пока ${T}, среднее ещё скачет.`;
   } else {
     const rate = T ? greenCount / T : 0;
