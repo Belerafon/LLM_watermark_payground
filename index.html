@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Водяные знаки в LLM</title>
+  <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
+  <script src="coi-serviceworker.js"></script>
+  <link rel="stylesheet" href="style.css?v=20" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <h1 class="hover-tip" tabindex="0" data-tip="Модель пишет как обычно, но выбор следующего слова чуть смещён секретным правилом. Потом по этому правилу можно проверить, что текст сгенерирован.">Водяные знаки <span class="grad">в тексте LLM</span></h1>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ═══════════ Controls ═══════════ -->
+    <section class="card controls">
+      <div class="field">
+        <label for="model">Модель</label>
+        <select id="model">
+          <option value="onnx-community/gemma-4-E4B-it-ONNX" selected>Gemma 4 E4B (~4.9 ГБ, только WebGPU)</option>
+        </select>
+        <div class="model-status">
+          <span id="status-text">Запуск…</span>
+          <span id="backend-badge" class="backend-badge" hidden></span>
+        </div>
+        <div class="progress" id="progress" hidden><div class="progress-fill" id="progress-fill"></div></div>
+        <p class="status-note" id="status-note" hidden></p>
+        <details class="diagnostics" id="diagnostics" hidden>
+          <summary>Диагностика</summary>
+          <div class="diag-actions"><button type="button" id="copy-diag" class="btn secondary small">Скопировать диагностику</button></div>
+          <pre id="diag-text"></pre>
+        </details>
+      </div>
+
+      <div class="field">
+        <label for="prompt">Промпт</label>
+        <textarea id="prompt" rows="4" spellcheck="true">Расскажи вкратце о технологии вотермарков в текстовых LLM SynthID.</textarea>
+      </div>
+
+      <div class="field">
+        <label>Режим водяного знака</label>
+        <div class="segmented" role="radiogroup" aria-label="Режим водяного знака">
+          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="none" /><span>Нет</span></label>
+          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="hard" /><span>Жёсткий</span></label>
+          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="soft" /><span>Мягкий</span></label>
+          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="tournament" checked /><span>Турнир</span></label>
+        </div>
+      </div>
+
+      <details class="params">
+        <summary>Параметры генерации</summary>
+        <div class="param-grid">
+          <div class="param" data-param="maxTokens">
+            <label for="maxTokens">Ответ <span class="tip" tabindex="0" data-tip="Потолок новых токенов, не цель. Модель сама останавливается, когда ставит конец реплики: токены конца вроде <turn|> и <eos>. 4096 — запас, чтобы ответ не обрывался на середине. Длинный потолок не заставляет писать длинно.">?</span></label>
+            <input type="number" id="maxTokens" min="1" max="8192" step="1" value="4096" />
+          </div>
+          <div class="param" data-param="maxInput">
+            <label for="maxInput">Промпт <span class="tip" tabindex="0" data-tip="Сколько токенов промпта модель видит. 16384 — около 16 тысяч кусков текста. Если вставить больше, отрезается начало, конец промпта остаётся. На обычный вопрос это не влияет.">?</span></label>
+            <input type="number" id="maxInput" min="128" max="32768" step="1" value="16384" />
+          </div>
+          <div class="param" data-param="temperature">
+            <label for="temperature">Температура <span class="tip" tabindex="0" data-tip="Насколько модель слушается своих вероятностей. Сначала у каждого токена есть сырая оценка — логит, «насколько это слово сейчас уместно». Софтмакс превращает оценки в вероятности: лидер получает больший шанс, но не 100%. Температура 1 оставляет эти шансы как есть. Ниже 1 модель почти всегда берёт самое вероятное слово, текст суше. Выше 1 распределение площе, текст разнообразнее и рискованнее. 0 — жадный режим: всегда берётся лидер, случайности нет. Для турнира нужна случайность, оставляйте около 1.">?</span></label>
+            <input type="number" id="temperature" min="0" max="2" step="0.1" value="1.0" />
+          </div>
+          <div class="param" data-param="topK">
+            <label for="topK">top-k <span class="tip" tabindex="0" data-tip="После софтмакса есть вероятность у каждого токена словаря — у Gemma их больше 250 тысяч. top-k оставляет только k самых вероятных, хвост обнуляет и заново нормирует сумму к 1. 0 — не резать. 200 отсекает редкий бред, но выбор ещё широкий.">?</span></label>
+            <input type="number" id="topK" min="0" max="1000" step="1" value="200" />
+          </div>
+          <div class="param" data-param="topP">
+            <label for="topP">top-p <span class="tip" tabindex="0" data-tip="Другой нож по хвосту вероятностей. Токены сортируют от самых вероятных и берут сверху столько, чтобы их суммарный шанс был не меньше p. p = 0.9 — смотреть только на слова, которые вместе покрывают 90% вероятности. 1 — не резать. Режется уже после водяного знака, поэтому метка не затирается.">?</span></label>
+            <input type="number" id="topP" min="0.05" max="1" step="0.05" value="1" />
+          </div>
+          <div class="param" data-param="seed">
+            <label for="seed">Сид <span class="tip" tabindex="0" data-tip="Зафиксирован на 42. Это зерно случайного выбора токена, не ключ водяного знака. Одинаковые настройки всегда дают тот же текст. Менять нельзя, чтобы прогоны можно было сравнивать.">?</span></label>
+            <input type="text" id="seed" value="42" readonly />
+          </div>
+        </div>
+      </details>
+
+      <details class="params" open data-param="wmSection">
+        <summary>Параметры водяного знака</summary>
+        <div class="param-grid">
+          <div class="param" data-param="gamma">
+            <label for="gamma">доля γ <span class="tip" tabindex="0" data-tip="Какую долю словаря секретный жребий красит в зелёный. 0.5 — половина токенов зелёная, половина красная. Без метки в текст всё равно попадёт около γ зелёных просто по случайности. Детектор ищет избыток сверх этой доли.">?</span></label>
+            <input type="number" id="gamma" min="0.05" max="0.95" step="0.05" value="0.5" />
+          </div>
+          <div class="param" data-param="delta">
+            <label for="delta">сдвиг δ <span class="tip" tabindex="0" data-tip="Насколько прибавить к сырой оценке зелёного токена до софтмакса. Оценка (логит) — число модели «насколько слово уместно», ещё не вероятность. Софтмакс потом делает из оценок шансы. δ = 4 заметно склоняет выбор к зелёным, но красные не запрещены. Больше δ — сильнее метка и чуть заметнее сдвиг стиля.">?</span></label>
+            <input type="number" id="delta" min="0" max="15" step="0.5" value="4.0" />
+          </div>
+          <div class="param" data-param="layers">
+            <label for="layers">слои m <span class="tip" tabindex="0" data-tip="Сколько раундов в турнире на вылет. В каждом раунде у кандидата секретная метка 0 или 1, из ключа и предыдущего слова. Остаётся тот, у кого 1. m = 15 — как если бы в турнир вытянули 2^15 кандидатов, только это считается формулой, без перебора. Больше раундов — сильнее след и чуть дольше шаг. 15 здесь нормальный дефолт.">?</span></label>
+            <input type="number" id="layers" min="1" max="30" step="1" value="15" />
+          </div>
+          <div class="param" data-param="ctxWidth">
+            <label for="ctxWidth">контекст h <span class="tip" tabindex="0" data-tip="Сколько предыдущих токенов входит в секрет, из которого считаются списки и монетки g. h = 1 — нормально: метка зависит только от предыдущего токена и ключа. Детектору этого хватает, чтобы пересчитать ту же метку. Если увеличить h, одна правка или пропуск слова испортит проверку следующих h позиций. Для первого прогона оставьте 1.">?</span></label>
+            <input type="number" id="ctxWidth" min="1" max="8" step="1" value="1" />
+          </div>
+          <div class="param" data-param="wmKey">
+            <label for="wmKey">ключ <span class="tip" tabindex="0" data-tip="Секрет, который знают и генератор, и детектор. Он подмешивается в хеш вместе с предыдущими токенами. Без того же ключа детектор нарисует другие списки и другие монетки и ничего не найдёт. На качество текста почти не влияет.">?</span></label>
+            <input type="text" id="wmKey" value="ai_wrote_this" spellcheck="false" />
+          </div>
+        </div>
+        <div class="field" id="redwords-field" data-param="redWords">
+          <label for="redWords">Всегда в красный список <span class="optional">(необязательно, через запятую)</span> <span class="tip" tabindex="0" data-tip="Слова, которые нельзя красить в зелёный. В жёстком и мягком режиме они всегда красные. В турнире у них g = 0, они проигрывают любой матч. Так видно, как модель обходит очевидное слово. Учитываются разный регистр и вариант с пробелом в начале: токенизатор часто клеит пробел к слову.">?</span></label>
+          <input type="text" id="redWords" placeholder="например: Париж, маяк, огонь" spellcheck="false" />
+        </div>
+      </details>
+
+      <div class="actions">
+        <div class="action-row">
+          <span class="btn-tip" id="generate-tip" tabindex="0">
+            <button id="generate-btn" class="btn primary" disabled>Сгенерировать</button>
+          </span>
+          <button id="stop-btn" class="btn ghost" hidden>Стоп</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Output ═══════════ -->
+    <section class="card output-card">
+      <div class="output-head">
+        <h2>Текст</h2>
+        <div class="output-tools">
+          <label class="color-toggle" for="color-text">
+            <input type="checkbox" id="color-text" checked />
+            Раскраска
+          </label>
+          <div class="legend is-off" id="legend">
+            <span class="legend-item"><span class="swatch green"></span><span id="legend-hi">зелёный список</span></span>
+            <span class="legend-item"><span class="swatch red"></span><span id="legend-lo">красный список</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="seed-line hover-tip" tabindex="0" data-tip="На водяной знак не влияет, только на случайный выбор слов. Зафиксирован на 42, чтобы прогон повторялся.">Сид генерации: <strong id="seed-shown">42</strong></p>
+
+      <div class="output" id="output" contenteditable="true" spellcheck="true"><span class="placeholder" id="output-placeholder">Сюда можно вставить свой текст и нажать «Проверить».</span><span class="prompt-echo" id="prompt-echo"></span><span class="tokens" id="tokens"></span></div>
+    </section>
+
+    <!-- ═══════════ Detection ═══════════ -->
+    <section class="card detect-card">
+      <div class="output-head">
+        <h2>Проверка</h2>
+      </div>
+
+      <div class="field">
+        <label>Алгоритм проверки</label>
+        <div class="segmented" role="radiogroup" aria-label="Алгоритм проверки">
+          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="none" /><span>Нет</span></label>
+          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="hard" /><span>Жёсткий</span></label>
+          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="soft" /><span>Мягкий</span></label>
+          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="tournament" checked /><span>Турнир</span></label>
+        </div>
+      </div>
+
+      <div class="detect-key">
+        <label for="detectKey">Ключ детектора <span class="tip" tabindex="0" data-tip="Должен совпасть с ключом, которым текст помечали. Иначе проверка считает другую метку и почти наверняка скажет, что знака нет.">?</span></label>
+        <input type="text" id="detectKey" value="ai_wrote_this" spellcheck="false" />
+      </div>
+
+      <div class="detect-row">
+        <span class="btn-tip" id="detect-tip" tabindex="0">
+          <button id="detect-btn" class="btn secondary" disabled>Проверить</button>
+        </span>
+      </div>
+
+      <div class="verdict" id="verdict" hidden>
+        <div class="verdict-head">
+          <span class="verdict-label" id="verdict-label"></span>
+          <span class="verdict-conf hover-tip" id="verdict-conf" tabindex="0"></span>
+        </div>
+        <div class="meter"><div class="meter-fill" id="meter-fill"></div></div>
+        <dl class="stats">
+          <div class="hover-tip" id="tip-scheme" tabindex="0"><dt>детектор</dt><dd id="stat-scheme"></dd></div>
+          <div class="hover-tip" id="tip-green" tabindex="0"><dt id="stat-first-label">зелёные токены</dt><dd id="stat-green"></dd></div>
+          <div class="hover-tip" id="tip-z" tabindex="0"><dt>z-оценка</dt><dd id="stat-z"></dd></div>
+          <div class="hover-tip" id="tip-p" tabindex="0"><dt>p-значение</dt><dd id="stat-p"></dd></div>
+        </dl>
+        <p class="hint hover-tip" id="verdict-note" tabindex="0"></p>
+      </div>
+    </section>
+  </main>
+
+  <div id="hint-pop" hidden></div>
+  <script type="module" src="main.js?v=34"></script>
+</body>
+</html>
