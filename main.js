@@ -650,8 +650,13 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h, e
   const ceiling = tournament ? (Number(expectedG) || expectedTournamentMean(m)) : 1;
   const floor = tournament ? 0.5 : gamma;
   const budget = Math.max(1e-4, ceiling - floor);
+  const g = Number.isFinite(meanG) ? meanG : 0.5;
+  // Short text: the sample mean wanders above the long-run ceiling. Don't score that as a full mark.
+  const checks = Math.max(1, (T || 0) * (m || 1));
+  const need = Math.ceil(1 / (budget * budget));
+  const ready = !tournament || checks >= need;
   const raw = tournament
-    ? (Number(meanG) - 0.5) / budget
+    ? Math.min(1, Math.max(0, (g - 0.5) / budget)) * Math.min(1, checks / need)
     : ((T ? greenCount / T : gamma) - gamma) / Math.max(1e-9, 1 - gamma);
   const pct = Math.max(0, Math.min(100, raw * 100));
   const pctText = pct >= 99.5 ? "100%" : pct < 10 ? `${pct.toFixed(1)}%` : `${pct.toFixed(0)}%`;
@@ -668,9 +673,9 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h, e
     cls = "neg";
   }
   if (tournament) {
-    const g = Number.isFinite(meanG) ? meanG : 0.5;
-    const shift = g - 0.5;
-    note = `Средний g ${g.toFixed(3)}. Предел при m=${m} — ${ceiling.toFixed(3)}. Это ${pctText} метки.`;
+    note = ready
+      ? `Средний g ${g.toFixed(3)}. Предел при m=${m} — ${ceiling.toFixed(3)}. Это ${pctText} метки.`
+      : `Средний g ${g.toFixed(3)}. Токенов пока ${T}, среднее ещё скачет.`;
   } else {
     const rate = T ? greenCount / T : 0;
     note = `Зелёных ${(rate * 100).toFixed(0)}% при честных ${(gamma * 100).toFixed(0)}%. Процент — доля пути от γ до 100%.`;
