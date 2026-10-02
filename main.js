@@ -19,6 +19,7 @@ import {
   probeWasmHeapMB,
   createLog,
 } from "./models.js?v=3";
+import { expectedTournamentMean } from "./watermark.js?v=9";
 
 const $ = (id) => document.getElementById(id);
 
@@ -109,7 +110,7 @@ let crashReloads = 0;
 
 function spawnWorker(meta) {
   const id = ++attemptSeq;
-  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=10" : "worker.js?v=11";
+  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=11" : "worker.js?v=12";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -643,23 +644,23 @@ els.copyDiag.addEventListener("click", async () => {
 
 /* ── verdict rendering ── */
 
-function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h }) {
+function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h, expectedG }) {
   els.verdict.hidden = false;
   const tournament = scheme === "tournament";
-  // SynthID mean score, Bernoulli g in {0,1}: unmarked expectation is 0.5.
-  // Watermarked expectation is (3−C)/4, from 0.5 (no choice) to 0.75 (distinct candidates).
-  // The percent is that gap, not 1−p. 0.504 is 1.6% of it, not 80%.
+  const ceiling = tournament ? (Number(expectedG) || expectedTournamentMean(m)) : 1;
+  const floor = tournament ? 0.5 : gamma;
+  const budget = Math.max(1e-4, ceiling - floor);
   const raw = tournament
-    ? (Number(meanG) - 0.5) / 0.25
+    ? (Number(meanG) - 0.5) / budget
     : ((T ? greenCount / T : gamma) - gamma) / Math.max(1e-9, 1 - gamma);
   const pct = Math.max(0, Math.min(100, raw * 100));
   const pctText = pct >= 99.5 ? "100%" : pct < 10 ? `${pct.toFixed(1)}%` : `${pct.toFixed(0)}%`;
 
   let label, cls, note;
-  if (pct >= 40) {
+  if (pct >= 70) {
     label = "Водяной знак найден";
     cls = "pos";
-  } else if (pct >= 15) {
+  } else if (pct >= 30) {
     label = "Слабый след";
     cls = "mid";
   } else {
@@ -669,7 +670,7 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h })
   if (tournament) {
     const g = Number.isFinite(meanG) ? meanG : 0.5;
     const shift = g - 0.5;
-    note = `Средний g ${g.toFixed(3)}. Без метки это 0.500, потолок турнира 0.750. Сдвиг ${shift.toFixed(3)} из 0.250 — это ${pctText}.`;
+    note = `Средний g ${g.toFixed(3)}. Для m=${m} потолок помеченного турнира ${ceiling.toFixed(3)}, не 0.750. Сдвиг ${shift.toFixed(3)} из ${budget.toFixed(3)} — это ${pctText}.`;
   } else {
     const rate = T ? greenCount / T : 0;
     note = `Зелёных ${(rate * 100).toFixed(0)}% при честных ${(gamma * 100).toFixed(0)}%. Процент — доля пути от γ до 100%.`;
@@ -682,10 +683,10 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h })
   els.verdictConf.textContent = `метка ${pctText}`;
   els.meterFill.style.width = `${pct.toFixed(1)}%`;
   els.verdictConf.dataset.tip = tournament
-    ? `Процент считается из среднего g, не из p-значения.\n\n` +
-      `У непомеченного текста g болтается около 0.500. Помеченный турнир не дотягивает до 1: в разборе SynthID ожидание равно (3−C)/4. C — насколько часто два кандидата совпали. Если выбора не было, C=1 и g остаётся 0.5. Если кандидаты разные, C=0 и g = 0.75.\n\n` +
-      `Поэтому шкала — от 0.500 до 0.750. 100% значит «набран весь сдвиг, который турнир вообще может дать». 0.504 − 0.500 = 0.004, а весь промежуток 0.250, значит 1.6%, не 80%.\n\n` +
-      `Подпись по той же шкале. От 40% (g ≥ 0.60) — «найден». От 15% до 40% — «слабый след». Ниже — «не найден».`
+    ? `Процент — доля сдвига от 0.500 до потолка этого турнира, не до 0.75 и не 1−p.\n\n` +
+      `Один раунд даёт ожидание (3−C)/4. C — насколько часто два кандидата совпали. У этой модели следующий токен обычно почти предрешён, C около 0.7, поэтому один раунд упирается в ~0.57, а не в 0.75.\n\n` +
+      `Детектор усредняет g по всем m раундам. Лишние раунды уже без выбора и тянут среднее к 0.5. Потолок пересчитывается при смене m. Сейчас для m=${m} он ${ceiling.toFixed(3)}.\n\n` +
+      `Подпись по той же шкале. От 70% — «найден». От 30% до 70% — «слабый след». Ниже — «не найден».`
     : `Процент — насколько доля зелёных ушла от честных γ к 100%. Это не p-значение.`;
 
   els.statScheme.textContent = tournament ? `турнир (m=${m}, h=${h})` : `зелёный список (γ=${gamma}, h=${h})`;
@@ -719,7 +720,7 @@ function setVerdictTips({ tournament, z, pValue, greenCount, T, gamma, meanG, m,
       `Средний g — доля секретных единиц.\n\n` +
       `У каждого написанного слова и каждого раунда есть метка 0 или 1. Она считается из ключа и предыдущего слова, не из смысла. Среднее ${meanG.toFixed(3)} значит, что единица выпала в ${(meanG * 100).toFixed(1)}% проверок.\n\n` +
       `${T} — сколько токенов проверено. ${m} — раундов на каждый. Вместе ${T}×${m} = ${checks} проверок.\n\n` +
-      `Без водяного знака среднее около 0.500. Потолок помеченного турнира — 0.750, не 1. Процент сверху — какая доля этого промежутка 0.250 набрана.`
+      `Без водяного знака среднее около 0.500. Потолок для текущего m считает детектор: это ожидаемый g помеченного турнира, не 0.750. Процент сверху — какая доля этого промежутка набрана. Сменили m — потолок пересчитается.`
     );
   } else {
     const pct = T ? ((greenCount / T) * 100).toFixed(0) : "0";

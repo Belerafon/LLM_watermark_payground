@@ -217,6 +217,73 @@ export function tournamentSample(probs, seed, m, forcedRed = null, rng = Math.ra
  * @param {number} startIndex index of the first generated token
  * @param {{m: number, h: number, forcedRed?: Set<number>|null, keySeed?: number}} params
  */
+/**
+ * Expected mean g of text actually produced by this m-layer tournament.
+ *
+ * One Bernoulli layer has expectation (3−C)/4 (Dathathri / Omidi). C is the
+ * chance two candidates are the same token. A peaked next-token distribution
+ * has C ≈ 0.72, so one layer tops out near 0.57, not 0.75. Later layers
+ * average in near-fair coins, so the mean slides toward 0.5 as m grows.
+ * At m = 15 that ceiling is about 0.54 — the range this page can actually reach.
+ *
+ * Deterministic: a fixed geometric distribution and fixed g-bits, so the scale
+ * does not flicker, and a new m recomputes it.
+ */
+const TOURNAMENT_CEILING = new Map();
+const CEILING_V = 40;
+const CEILING_TRIALS = 64;
+const CEILING_RATIO = 0.16;
+
+function ceilingBit(trial, layer, rank) {
+  const x = mix32((trial + 1) ^ mix32(Math.imul(layer + 1, LAYER_KEY)) ^ mix32(Math.imul(rank + 1, TOKEN_KEY)));
+  return x >>> 31;
+}
+
+export function expectedTournamentMean(m) {
+  const layers = Math.max(1, Math.min(30, Math.round(m) || 1));
+  const cached = TOURNAMENT_CEILING.get(layers);
+  if (cached !== undefined) return cached;
+
+  const p = new Float64Array(CEILING_V);
+  let sum = 0;
+  for (let i = 0; i < CEILING_V; i++) {
+    p[i] = CEILING_RATIO ** i;
+    sum += p[i];
+  }
+  for (let i = 0; i < CEILING_V; i++) p[i] /= sum;
+
+  let acc = 0;
+  for (let trial = 0; trial < CEILING_TRIALS; trial++) {
+    const q = Float64Array.from(p);
+    const gs = [];
+    for (let layer = 0; layer < layers; layer++) {
+      const g = new Uint8Array(CEILING_V);
+      let p0 = 0;
+      for (let t = 0; t < CEILING_V; t++) {
+        g[t] = ceilingBit(trial, layer, t);
+        if (!g[t]) p0 += q[t];
+      }
+      gs.push(g);
+      let s = 0;
+      for (let t = 0; t < CEILING_V; t++) {
+        q[t] *= g[t] + p0;
+        s += q[t];
+      }
+      if (s > 0) for (let t = 0; t < CEILING_V; t++) q[t] /= s;
+    }
+    let mean = 0;
+    for (const g of gs) {
+      let mass = 0;
+      for (let t = 0; t < CEILING_V; t++) if (g[t]) mass += q[t];
+      mean += mass;
+    }
+    acc += mean / layers;
+  }
+  const value = acc / CEILING_TRIALS;
+  TOURNAMENT_CEILING.set(layers, value);
+  return value;
+}
+
 export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keySeed = 0 }) {
   const perTokenScore = [];
   let sumG = 0;
@@ -234,5 +301,6 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
   const z = N > 0 ? (sumG - N / 2) / Math.sqrt(N / 4) : 0;
   const pValue = N > 0 ? 1 - normalCdf(z) : 1;
   const flags = perTokenScore.map((s) => s >= 0.5);
-  return { flags, perTokenScore, meanG, T, m, z, pValue };
+  const expectedG = expectedTournamentMean(m);
+  return { flags, perTokenScore, meanG, T, m, z, pValue, expectedG };
 }

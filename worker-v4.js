@@ -14,7 +14,7 @@ import {
   InterruptableStoppingCriteria,
   env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=8";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=9";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=3";
 
 // Local folder if present (start.bat). Otherwise Hugging Face Hub, so GitHub Pages
@@ -503,6 +503,7 @@ function scoreGeneration(ids, promptLen, p) {
       flags: r.flags,
       perTokenScore: r.perTokenScore,
       meanG: r.meanG,
+      expectedG: r.expectedG,
       T: r.T,
       m: r.m,
       h: p.h,
@@ -587,6 +588,7 @@ function runDetect(p, extra = null) {
         flags: r.flags,
         perTokenScore: r.perTokenScore,
         meanG: r.meanG,
+        expectedG: r.expectedG,
         T: r.T,
         m: r.m,
         h: p.h,
