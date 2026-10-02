@@ -494,10 +494,17 @@ async function generate(p) {
 }
 
 function scoreGeneration(ids, promptLen, p) {
-  const forcedRed = buildForcedRedSet(p.redWords);
-  const keySeed = keyToSeed(p.key);
-  if (p.mode === "tournament") {
-    const r = detectTournament(ids, promptLen, { m: p.m, h: p.h, forcedRed, keySeed });
+  // The number on screen is a detection. It must use the detector key and
+  // scheme, same as «Проверить». p.key only embeds the mark while sampling.
+  const detect = p.detect ?? {};
+  const forcedRed = buildForcedRedSet(detect.redWords ?? p.redWords);
+  const keySeed = keyToSeed(detect.key ?? p.key);
+  const scheme = detect.scheme ?? (p.mode === "tournament" ? "tournament" : "greenlist");
+  const h = detect.h ?? p.h;
+  const m = detect.m ?? p.m;
+  const gamma = detect.gamma ?? p.gamma;
+  if (scheme === "tournament") {
+    const r = detectTournament(ids, promptLen, { m, h, forcedRed, keySeed });
     return {
       scheme: "tournament",
       flags: r.flags,
@@ -506,12 +513,12 @@ function scoreGeneration(ids, promptLen, p) {
       expectedG: r.expectedG,
       T: r.T,
       m: r.m,
-      h: p.h,
+      h,
       z: r.z,
       pValue: r.pValue,
     };
   }
-  const result = detect(ids, promptLen, { gamma: p.gamma, h: p.h, forcedRed, keySeed });
+  const result = detect(ids, promptLen, { gamma, h, forcedRed, keySeed });
   return {
     scheme: "greenlist",
     flags: result.flags,
@@ -519,8 +526,8 @@ function scoreGeneration(ids, promptLen, p) {
     T: result.T,
     z: result.z,
     pValue: result.pValue,
-    gamma: p.gamma,
-    h: p.h,
+    gamma,
+    h,
   };
 }
 

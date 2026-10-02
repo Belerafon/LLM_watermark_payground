@@ -110,7 +110,7 @@ let crashReloads = 0;
 
 function spawnWorker(meta) {
   const id = ++attemptSeq;
-  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=11" : "worker.js?v=12";
+  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=12" : "worker.js?v=12";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -781,7 +781,7 @@ els.generateBtn.addEventListener("click", () => {
   els.tokens.appendChild(streamSpan);
   els.promptEcho.textContent = "";
 
-  send({ type: "generate", params: p });
+  send({ type: "generate", params: { ...p, detect: detectParams() } });
 });
 
 els.stopBtn.addEventListener("click", () => send({ type: "interrupt" }));
