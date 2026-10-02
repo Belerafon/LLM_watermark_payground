@@ -67,6 +67,7 @@ em.r { color: var(--red); font-style: normal; font-weight: 600; }
 /* ── Header ── */
 .site-header { padding: 18px 20px 8px; }
 .header-inner { max-width: 1440px; margin: 0 auto; }
+.repo-link { display: inline-block; margin-bottom: 4px; font-size: 14px; font-weight: 600; }
 
 .badge {
   display: inline-block;

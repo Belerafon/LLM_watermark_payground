@@ -109,7 +109,7 @@ let crashReloads = 0;
 
 function spawnWorker(meta) {
   const id = ++attemptSeq;
-  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=9" : "worker.js?v=11";
+  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=10" : "worker.js?v=11";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -405,6 +405,7 @@ function handleMessage(msg) {
       paintDetection(msg);
       if (msg.note) els.verdictNote.textContent += msg.note;
       if (msg.pasted) {
+        outputDirty = false;
         haveGeneration = (msg.tokens?.length ?? 0) > 0;
         els.verdictNote.textContent += " Первые токены взяты только как контекст и не подсвечены.";
         setStatus("Проверен вставленный текст.");
@@ -787,11 +788,14 @@ function paintDetection(msg) {
   const chips = els.tokens.children;
   const tournament = msg.scheme === "tournament";
   const color = els.colorText?.checked !== false;
-  for (let i = 0; i < chips.length && i < (msg.flags?.length ?? 0); i++) {
-    chips[i].classList.toggle("green", color && !!msg.flags[i]);
-    chips[i].classList.toggle("red", color && !msg.flags[i]);
+  const colorFrom = msg.colorFrom ?? 0;
+  for (let i = 0; i < chips.length; i++) {
+    const flag = i - colorFrom;
+    const known = flag >= 0 && flag < (msg.flags?.length ?? 0);
+    chips[i].classList.toggle("green", color && known && !!msg.flags[flag]);
+    chips[i].classList.toggle("red", color && known && !msg.flags[flag]);
     const base = chips[i].title.split(" · ")[0];
-    chips[i].title = tournament && color ? `${base} · средний g = ${msg.perTokenScore[i].toFixed(2)}` : base;
+    chips[i].title = tournament && color && known ? `${base} · средний g = ${msg.perTokenScore[flag].toFixed(2)}` : base;
   }
   els.legendHi.textContent = tournament ? "g ≥ 0.5" : "зелёный список";
   els.legendLo.textContent = tournament ? "g < 0.5" : "красный список";
@@ -800,6 +804,9 @@ function paintDetection(msg) {
 }
 
 function renderTokenChips(tokens) {
+  for (const node of [...els.output.childNodes]) {
+    if (node !== els.placeholder && node !== els.promptEcho && node !== els.tokens) node.remove();
+  }
   els.placeholder.hidden = true;
   els.promptEcho.textContent = "";
   els.tokens.textContent = "";

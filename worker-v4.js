@@ -554,7 +554,12 @@ function detectPasted(text, p) {
     const h = Math.max(1, Math.round(p.h || 1));
     const promptLen = Math.min(h, Math.max(0, ids.length - 1));
     lastGen = { ids, promptLen };
-    runDetect(p, { tokens: tokenChips(ids.slice(promptLen)), pasted: true, note });
+    runDetect(p, {
+      tokens: tokenChips(ids),
+      colorFrom: promptLen,
+      pasted: true,
+      note,
+    });
   } catch (err) {
     fail("detect", err);
     setPhase("ready");
