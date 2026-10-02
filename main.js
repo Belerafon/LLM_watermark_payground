@@ -670,7 +670,9 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h, e
   if (tournament) {
     const g = Number.isFinite(meanG) ? meanG : 0.5;
     const shift = g - 0.5;
-    note = `Средний g ${g.toFixed(3)}. Для m=${m} потолок помеченного турнира ${ceiling.toFixed(3)}, не 0.750. Сдвиг ${shift.toFixed(3)} из ${budget.toFixed(3)} — это ${pctText}.`;
+    note = shift > 0.001
+      ? `Средний g ${g.toFixed(3)} из возможных ${ceiling.toFixed(3)} при m=${m}. Это ${pctText} метки.`
+      : `Средний g ${g.toFixed(3)} — почти честные 0.500. Метки нет.`;
   } else {
     const rate = T ? greenCount / T : 0;
     note = `Зелёных ${(rate * 100).toFixed(0)}% при честных ${(gamma * 100).toFixed(0)}%. Процент — доля пути от γ до 100%.`;
