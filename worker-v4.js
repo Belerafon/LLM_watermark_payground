@@ -14,7 +14,7 @@ import {
   InterruptableStoppingCriteria,
   env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=9";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=3";
 
 // Local folder if present (start.bat). Otherwise Hugging Face Hub, so GitHub Pages
@@ -512,6 +512,7 @@ function scoreGeneration(ids, promptLen, p) {
       meanG: r.meanG,
       expectedG: r.expectedG,
       T: r.T,
+      totalT: r.totalT,
       m: r.m,
       h,
       z: r.z,
@@ -524,6 +525,7 @@ function scoreGeneration(ids, promptLen, p) {
     flags: result.flags,
     greenCount: result.greenCount,
     T: result.T,
+    totalT: result.totalT,
     z: result.z,
     pValue: result.pValue,
     gamma,
@@ -597,6 +599,7 @@ function runDetect(p, extra = null) {
         meanG: r.meanG,
         expectedG: r.expectedG,
         T: r.T,
+        totalT: r.totalT,
         m: r.m,
         h: p.h,
         z: r.z,
@@ -617,6 +620,7 @@ function runDetect(p, extra = null) {
       flags: result.flags,
       greenCount: result.greenCount,
       T: result.T,
+      totalT: result.totalT,
       z: result.z,
       pValue: result.pValue,
       gamma: p.gamma,

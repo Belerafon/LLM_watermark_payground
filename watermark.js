@@ -86,18 +86,24 @@ export function normalCdf(z) {
  */
 export function detect(ids, startIndex, { gamma, h, forcedRed = null, keySeed = 0 }) {
   const flags = [];
+  const seen = new Set();
+  let T = 0;
   let greenCount = 0;
   for (let i = startIndex; i < ids.length; i++) {
     const ctx = ids.slice(Math.max(0, i - h), i);
     const seed = seedFromContext(ctx, keySeed);
     const green = isGreen(seed, ids[i], gamma, forcedRed);
     flags.push(green);
+    // A repeated context/token pair reproduces the same hash, not new evidence.
+    const pair = `${ctx.join(",")}:${ids[i]}`;
+    if (seen.has(pair)) continue;
+    seen.add(pair);
+    T++;
     if (green) greenCount++;
   }
-  const T = flags.length;
   const z = T > 0 ? (greenCount - gamma * T) / Math.sqrt(T * gamma * (1 - gamma)) : 0;
   const pValue = T > 0 ? 1 - normalCdf(z) : 1;
-  return { flags, greenCount, T, z, pValue };
+  return { flags, greenCount, T, totalT: flags.length, z, pValue };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -117,7 +123,7 @@ const LAYER_KEY = 0x7f4a7c15;
 
 /**
  * g-value of `tokenId` for tournament layer `layer` under this context seed.
- * Tokens on the forced red list always get g = 0 (they lose every match).
+ * Tokens on the forced red list always get g = 0 (they lose to 1, but can tie 0).
  * @returns {0|1}
  */
 export function gValue(seed, layer, tokenId, forcedRed = null) {
@@ -218,13 +224,15 @@ export function tournamentSample(probs, seed, m, forcedRed = null, rng = Math.ra
  * @param {{m: number, h: number, forcedRed?: Set<number>|null, keySeed?: number}} params
  */
 /**
- * Expected mean g of text actually produced by this m-layer tournament.
+ * UI reference mean g for a tournament with a fixed artificial distribution.
+ * This is neither a ceiling nor a calibration for the loaded language model.
  *
  * One Bernoulli layer has expectation (3−C)/4 (Dathathri / Omidi). C is the
  * chance two candidates are the same token. A peaked next-token distribution
  * has C ≈ 0.72, so one layer tops out near 0.57, not 0.75. Later layers
  * average in near-fair coins, so the mean slides toward 0.5 as m grows.
- * At m = 15 that ceiling is about 0.54 — the range this page can actually reach.
+ * At m = 15 this particular artificial distribution yields a reference near 0.54.
+ * A real model may produce a smaller or larger mean depending on its predictions.
  *
  * Deterministic: a fixed geometric distribution and fixed g-bits, so the scale
  * does not flicker, and a new m recomputes it.
@@ -286,6 +294,8 @@ export function expectedTournamentMean(m) {
 
 export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keySeed = 0 }) {
   const perTokenScore = [];
+  const seen = new Set();
+  let T = 0;
   let sumG = 0;
   for (let i = startIndex; i < ids.length; i++) {
     const ctx = ids.slice(Math.max(0, i - h), i);
@@ -293,14 +303,17 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
     let s = 0;
     for (let layer = 0; layer < m; layer++) s += gValue(seed, layer, ids[i], forcedRed);
     perTokenScore.push(s / m);
+    const pair = `${ctx.join(",")}:${ids[i]}`;
+    if (seen.has(pair)) continue;
+    seen.add(pair);
+    T++;
     sumG += s;
   }
-  const T = perTokenScore.length;
   const N = T * m;
   const meanG = N > 0 ? sumG / N : 0.5;
   const z = N > 0 ? (sumG - N / 2) / Math.sqrt(N / 4) : 0;
   const pValue = N > 0 ? 1 - normalCdf(z) : 1;
   const flags = perTokenScore.map((s) => s >= 0.5);
   const expectedG = expectedTournamentMean(m);
-  return { flags, perTokenScore, meanG, T, m, z, pValue, expectedG };
+  return { flags, perTokenScore, meanG, T, totalT: perTokenScore.length, m, z, pValue, expectedG };
 }

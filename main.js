@@ -19,7 +19,7 @@ import {
   probeWasmHeapMB,
   createLog,
 } from "./models.js?v=3";
-import { expectedTournamentMean } from "./watermark.js?v=9";
+import { expectedTournamentMean } from "./watermark.js?v=10";
 
 const $ = (id) => document.getElementById(id);
 
@@ -110,7 +110,7 @@ let crashReloads = 0;
 
 function spawnWorker(meta) {
   const id = ++attemptSeq;
-  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=12" : "worker.js?v=12";
+  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=13" : "worker.js?v=13";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -208,8 +208,10 @@ function showBackendBadge({ device, dtype }) {
   els.backendBadge.textContent = device === "webgpu" ? `WebGPU · ${dtype}` : `WASM · ${dtype} (медленнее)`;
   const b = lastBackend;
   els.backendBadge.title =
-    [b?.adapter?.description || b?.adapter?.vendor, b?.note].filter(Boolean).join(" — ") ||
-    (device === "webgpu" ? "WebGPU" : "WebAssembly, single-threaded");
+    (device === "webgpu"
+      ? "Вычисления модели выполняются на видеокарте через WebGPU."
+      : "Вычисления модели выполняются на процессоре через WebAssembly в одном потоке.") +
+    " " + [b?.adapter?.description || b?.adapter?.vendor, b?.note].filter(Boolean).join(" — ");
   els.backendBadge.hidden = false;
 }
 
@@ -244,17 +246,18 @@ const VISIBLE_PARAMS = {
 };
 
 const MODE_HINT = {
-  none: "Метки нет. На каждом шаге модель составляет список продолжений и вытягивает одно слово: чаще то, которое сама считает уместным.",
-  hard: "Словарь тайно делится на зелёный и красный списки. Красные слова запрещены совсем, модель обязана взять зелёное. Текст остаётся связным, но выбор уже не тот, что она хотела.",
-  soft: "Те же списки, но красные не запрещены. Зелёным чуть поднимают шанс, поэтому они выпадают чаще, а не всегда. Текст почти как без метки.",
-  tournament: "Без метки модель на каждом шаге составляет список продолжений и выбирает одно: чаще то, которое сама считает уместным.\n\nSynthID этот список не подменяет и в текст ничего секретного не дописывает. Она меняет только розыгрыш.\n\nИз того же списка вытягивают не одно слово, а пачку кандидатов. Все они правдоподобны, просто одни вероятнее других. Дальше их сводят в турнир на вылет. У каждого кандидата есть секретная метка 0 или 1. Она считается из ключа и предыдущего слова, не из смысла. В раунде остаётся тот, у кого 1. Раундов несколько — это число m. В текст попадает только последний победитель.\n\nЧитатель видит обычную фразу: победитель и так был вариантом модели. Но среди одинаково уместных слов чуть чаще остаются те, кому секретные метки благоприятствуют.",
+  none: "Создаёт ответ без водяного знака. Модель выбирает продолжения по своим вероятностям и настройкам генерации.\n\nИспользуйте этот режим для сравнения: даже в таком тексте детектор иногда увидит случайное совпадение с правилом метки.",
+  hard: "На каждом шаге правило по ключу делит варианты продолжения на зелёные и красные. Вариант — это токен: слово, часть слова или знак препинания.\n\nМодель может выбрать только зелёный вариант. Метка получается заметной для детектора, но запрет подходящих красных вариантов может ухудшить текст.",
+  soft: "На каждом шаге правило по ключу делит варианты продолжения на зелёные и красные. Зелёным повышают шанс, красные остаются разрешёнными.\n\nПараметр «Сила метки δ» задаёт величину преимущества. Детектор ищет избыток зелёных вариантов по сравнению с текстом без метки.",
+  tournament: "Выбирает следующий токен — слово или часть слова — через несколько раундов отбора. Кандидаты берутся из вариантов модели.\n\nВ каждом раунде правило по ключу и предыдущим токенам даёт кандидату оценку 0 или 1. Оценка 1 побеждает 0; при равных оценках преимущества нет. Это служебные оценки, в текст цифры не вставляются.\n\nЧисло раундов задаёт параметр m. Детектор восстанавливает оценки написанных токенов и ищет повышенную долю единиц.",
 };
 
+const GREEN_DETECT_HINT = "Ищет избыток токенов из зелёного списка. Токен — слово, часть слова или знак препинания. Детектор восстанавливает список по ключу и предыдущим токенам, затем сравнивает долю зелёных с ожидаемой без метки.\n\nПодходит и для жёсткой, и для мягкой метки. Ключ, доля зелёных γ, длина контекста h и красный список должны совпадать с настройками генерации.";
 const DETECT_HINT = {
-  none: "Проверка ищет зелёный список, хотя метку не ставили. На обычном тексте сигнала быть не должно. Ключ и h должны совпасть с тем, что стояло при генерации, иначе проверка считает другую метку.",
-  hard: "Проверка модель не запускает и её шансы не знает. Она заново делит словарь на зелёный и красный по ключу и предыдущему слову и считает, не слишком ли много зелёных. Ключ и h должны совпасть с генерацией.",
-  soft: "Проверка модель не запускает и её шансы не знает. Она заново делит словарь на зелёный и красный по ключу и предыдущему слову и считает, не слишком ли много зелёных. Ключ и h должны совпасть с генерацией.",
-  tournament: "Проверка модель не запускает и её шансы не знает. Она заново считает те же метки 0 и 1 для уже написанных слов, по ключу и предыдущему слову. Без водяного знака их примерно поровну. Если текст помечен, единиц заметно больше половины. Ключ и h должны совпасть с генерацией.",
+  none: "Этот пункт не отключает проверку: здесь тоже работает детектор зелёного списка. Его можно использовать для опыта с текстом, созданным без метки.\n\nОн сравнивает долю зелёных токенов — слов или частей слов — с заданной долей γ. Случайный избыток возможен и без водяного знака.",
+  hard: GREEN_DETECT_HINT,
+  soft: GREEN_DETECT_HINT,
+  tournament: "Проверяет оценки, которые правило турнира присваивает каждому токену — слову или части слова — в каждом раунде. Оценка 1 даёт преимущество при генерации, оценка 0 — нет.\n\nБез метки ожидается около половины единиц. Их избыток служит сигналом метки. Нужны тот же ключ, число раундов m, длина контекста h и красный список, что при генерации. Повтор одинакового токена после того же контекста учитывается один раз.",
 };
 
 function syncParamVisibility() {
@@ -275,9 +278,9 @@ function syncDetectUi() {
   const mode = getDetectMode();
   const name = MODE_NAME[mode] ?? mode;
   const tip =
-    `Эта кнопка проверяет алгоритмом «${name}». Это не режим генерации слева: тот только ставит метку. ` +
-    "Числа h, m, γ и красный список берутся из панели слева, ключ — из поля выше.\n\n" +
-    (DETECT_HINT[mode] ?? "");
+    `Ищет водяной знак в поле «Текст» выбранным способом: «${name}». Можно проверять созданный ответ, его отредактированную версию или вставленный текст.\n\n` +
+    "Ключ берётся из поля «Ключ детектора». Длина контекста, число раундов турнира, доля зелёных и красный список — из настроек слева; используйте значения, с которыми текст помечали.\n\n" +
+    "Для вставленного текста проверяются первые 2000 токенов — слов или частей слов. Начало используется как контекст. Результат относится к правилу этой программы: чужую метку с неизвестными настройками она не распознает.";
   if (els.detectTip) els.detectTip.dataset.tip = tip;
   document.querySelectorAll('input[name="detectMode"]').forEach((input) => {
     const label = input.closest("label");
@@ -378,7 +381,7 @@ function handleMessage(msg) {
       const span = document.createElement("span");
       span.className = "tok";
       span.textContent = msg.text;
-      span.title = `токен ${msg.id}`;
+      span.title = `Токен — фрагмент текста: слово, часть слова или знак препинания. Номер в словаре модели: ${msg.id}.`;
       els.tokens.appendChild(span);
       els.output.scrollTop = els.output.scrollHeight;
       break;
@@ -644,117 +647,90 @@ els.copyDiag.addEventListener("click", async () => {
 
 /* ── verdict rendering ── */
 
-function renderVerdict({ scheme, z, pValue, greenCount, T, gamma, meanG, m, h, expectedG }) {
+function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, meanG, m, h, expectedG }) {
   els.verdict.hidden = false;
   const tournament = scheme === "tournament";
-  const ceiling = tournament ? (Number(expectedG) || expectedTournamentMean(m)) : 1;
-  const floor = tournament ? 0.5 : gamma;
-  const budget = Math.max(1e-4, ceiling - floor);
+  const reference = tournament ? (Number(expectedG) || expectedTournamentMean(m)) : 1;
+  const budget = Math.max(1e-4, reference - 0.5);
   const g = Number.isFinite(meanG) ? meanG : 0.5;
-  // Short text: the sample mean wanders above the long-run ceiling. Don't score that as a full mark.
-  const checks = Math.max(1, (T || 0) * (m || 1));
+  const checks = (T || 0) * (m || 1);
   const need = Math.ceil(1 / (budget * budget));
-  const ready = !tournament || checks >= need;
+  const ready = tournament ? checks >= need : T * gamma >= 5 && T * (1 - gamma) >= 5;
   const raw = tournament
     ? Math.min(1, Math.max(0, (g - 0.5) / budget)) * Math.min(1, checks / need)
     : ((T ? greenCount / T : gamma) - gamma) / Math.max(1e-9, 1 - gamma);
   const pct = Math.max(0, Math.min(100, raw * 100));
   const pctText = pct >= 99.5 ? "100%" : pct < 10 ? `${pct.toFixed(1)}%` : `${pct.toFixed(0)}%`;
+  const labels = !ready
+    ? ["Мало данных для вывода", "mid"]
+    : pct >= 70 ? ["Сильный сигнал метки", "pos"]
+    : pct >= 30 ? ["Слабый сигнал метки", "mid"]
+    : ["Нет выраженного сигнала", "neg"];
+  const repeatNote = totalT > T ? ` Повторных сочетаний исключено: ${totalT - T}.` : "";
+  const note = (tournament
+    ? `Доля единиц: ${(g * 100).toFixed(1)}%; без метки ожидается около 50%. Учтено токенов: ${T}, раундов на токен: ${m}.`
+    : `Зелёных токенов: ${T ? (greenCount / T * 100).toFixed(1) : "0"}%; без метки ожидается около ${(gamma * 100).toFixed(1)}%. Учтено токенов: ${T}.`) + repeatNote;
 
-  let label, cls, note;
-  if (pct >= 70) {
-    label = "Водяной знак найден";
-    cls = "pos";
-  } else if (pct >= 30) {
-    label = "Слабый след";
-    cls = "mid";
-  } else {
-    label = "Водяной знак не найден";
-    cls = "neg";
-  }
-  if (tournament) {
-    note = ready
-      ? `Средний g ${g.toFixed(3)}. Предел при m=${m} — ${ceiling.toFixed(3)}. От предела набрано ${pctText}.`
-      : `Средний g ${g.toFixed(3)}. Токенов пока ${T}, среднее ещё скачет.`;
-  } else {
-    const rate = T ? greenCount / T : 0;
-    note = `Зелёных ${(rate * 100).toFixed(0)}% при честных ${(gamma * 100).toFixed(0)}%. Процент — доля пути от γ до 100%.`;
-  }
-
-  els.verdictLabel.textContent = label;
-  els.verdictLabel.className = `verdict-label ${cls}`;
+  els.verdictLabel.textContent = labels[0];
+  els.verdictLabel.className = `verdict-label ${labels[1]}`;
   els.verdictConf.hidden = false;
   els.meterFill.parentElement.hidden = false;
-  els.verdictConf.textContent = `метка ${pctText}`;
+  els.verdictConf.textContent = `сила ${pctText}`;
   els.meterFill.style.width = `${pct.toFixed(1)}%`;
-  els.verdictConf.dataset.tip = tournament
-    ? `Процент — какая доля пути от 0.500 до предела набрана. Предел считает детектор для текущего m.\n\n` +
-      `Сейчас предел ${ceiling.toFixed(3)}. Смените число слоёв и проверьте снова — предел пересчитается.\n\n` +
-      `Подпись по той же шкале. От 70% — «найден». От 30% до 70% — «слабый след». Ниже — «не найден».`
-    : `Процент — насколько доля зелёных ушла от честных γ к 100%.`;
+  const scaleTip = tournament
+    ? `Показывает, насколько доля оценок 1 поднялась над уровнем 50%, ожидаемым без метки. Оценку 1 правило турнира даёт вариантам, которым благоприятствует при выборе продолжения.\n\n100% на шкале соответствует ориентиру ${(reference * 100).toFixed(1)}% единиц при ${m} раундах. Он рассчитан на условном наборе вариантов, а не на вашей модели; это не предел. Для короткого текста процент дополнительно снижается.`
+    : `Показывает, насколько доля зелёных токенов поднялась над ожидаемыми без метки ${(gamma * 100).toFixed(1)}%. Зелёные — варианты, которым правило метки даёт преимущество.\n\nШкала идёт от 0% при ожидаемой доле до 100%, когда все учтённые токены зелёные. Например, при ожидаемых 50% и наблюдаемых 75% сила равна 50%.`;
+  els.verdictConf.dataset.tip = scaleTip +
+    "\n\nЭто условная сила сигнала, не вероятность авторства ИИ. При достаточном объёме данных: от 70% — сильный сигнал, от 30% — слабый. Статистическая оценка z показана отдельно и не определяет эту подпись.";
 
-  els.statScheme.textContent = tournament ? `турнир (m=${m}, h=${h})` : `зелёный список (γ=${gamma}, h=${h})`;
-  if (tournament) {
-    els.statFirstLabel.textContent = "средний g";
-    els.statGreen.textContent = `${meanG.toFixed(3)} на ${T} × ${m}`;
-  } else {
-    els.statFirstLabel.textContent = "зелёные токены";
-    els.statGreen.textContent = `${greenCount} / ${T} (${((greenCount / T) * 100).toFixed(0)}%)`;
-  }
-  els.statZ.textContent = z.toFixed(2);
-  els.statP.textContent = fmtP(pValue);
+  els.statScheme.textContent = tournament ? `турнир · ${m} раундов` : "зелёный список";
+  els.statFirstLabel.textContent = tournament ? "доля единиц" : "зелёные токены";
+  els.statGreen.textContent = tournament
+    ? `${(g * 100).toFixed(1)}% (${T} × ${m})`
+    : `${greenCount} / ${T} (${T ? (greenCount / T * 100).toFixed(0) : "0"}%)`;
+  els.statZ.textContent = T ? z.toFixed(2) : "—";
+  els.statP.textContent = T ? fmtP(pValue) : "—";
   els.verdictNote.textContent = note;
-  setVerdictTips({ tournament, z, pValue, greenCount, T, gamma, meanG, m, h, note });
+  setVerdictTips({ tournament, z, pValue, greenCount, T, totalT, gamma, meanG: g, m, h, ready });
 }
 
-function setVerdictTips({ tournament, z, pValue, greenCount, T, gamma, meanG, m, h, note }) {
-  const pText = fmtP(pValue);
+function setVerdictTips({ tournament, greenCount, T, totalT, gamma, meanG, m, h, ready }) {
   const tip = (id, text) => {
     const el = document.getElementById(id);
     if (el) el.dataset.tip = text;
   };
+  const counting = `Учтено ${T} из ${totalT} проверяемых токенов. Одинаковый токен после тех же предыдущих токенов учитывается один раз: повтор не даёт нового свидетельства метки.`;
+  const baseline = tournament
+    ? "доля оценок 1 — около 50%"
+    : `доля зелёных токенов — около ${(gamma * 100).toFixed(1)}%`;
   if (tournament) {
-    const checks = T * m;
     tip("tip-scheme",
-      `Каким способом пересчитывается метка. Сейчас это турнир SynthID, не зелёный список.\n\n` +
-      `m=${m} — сколько раундов на вылет у каждого слова. h=${h} — сколько предыдущих слов входит в секрет. h=1 значит метка зависит только от предыдущего токена и ключа.\n\n` +
-      `Это не оценка качества текста, а название метода. Смените алгоритм сверху — строка сменится.`
+      `Выбран детектор турнирной метки. Он восстанавливает служебные оценки 0 и 1 по ключу, затем ищет избыток единиц.\n\nРаундов на токен: ${m} (параметр m). Предыдущих токенов в расчёте: ${h} (параметр h). Токен — слово или часть слова. Эти параметры и ключ должны совпадать с генерацией.`
     );
     tip("tip-green",
-      `Средний g — доля секретных единиц.\n\n` +
-      `У каждого написанного слова и каждого раунда есть метка 0 или 1. Она считается из ключа и предыдущего слова, не из смысла. Среднее ${meanG.toFixed(3)} значит, что единица выпала в ${(meanG * 100).toFixed(1)}% проверок.\n\n` +
-      `${T} — сколько токенов проверено. ${m} — раундов на каждый. Вместе ${T}×${m} = ${checks} проверок.\n\n` +
-      `Без водяного знака среднее около 0.500. Предел для текущего m считает детектор. Процент сверху — какая доля пути до этого предела набрана.`
+      `В каждом раунде правило турнира присваивает токену оценку 0 или 1. При генерации 1 даёт преимущество перед 0. Это результат вычисления по ключу и контексту, а не цифры, спрятанные в тексте.\n\nСейчас единицы составляют ${(meanG * 100).toFixed(1)}% из ${T * m} оценок: ${T} токенов × ${m} раундов. Без метки ожидается около 50%.\n\n` + counting
     );
   } else {
-    const pct = T ? ((greenCount / T) * 100).toFixed(0) : "0";
     tip("tip-scheme",
-      `Каким способом пересчитывается метка. Сейчас это зелёный и красный списки, не турнир.\n\n` +
-      `γ=${gamma} — какая доля словаря красится в зелёный. h=${h} — сколько предыдущих слов входит в секрет.\n\n` +
-      `Это не оценка качества текста. Смените алгоритм сверху — строка сменится.`
+      `Выбран детектор зелёного списка. Он ищет варианты продолжения, которым правило метки даёт преимущество. Проверка одинакова для жёсткого и мягкого режимов.\n\nОжидаемая доля зелёных без метки: ${(gamma * 100).toFixed(1)}% (параметр γ). Предыдущих токенов в расчёте: ${h} (параметр h). Токен — слово или часть слова. Эти параметры и ключ должны совпадать с генерацией.`
     );
     tip("tip-green",
-      `Сколько написанных токенов попало в зелёный список.\n\n` +
-      `${greenCount} из ${T} — это ${pct}%. Зелёный список каждый раз заново считается из ключа и предыдущего слова.\n\n` +
-      `Без метки зелёных должно быть около γ=${gamma}, то есть примерно ${Math.round((gamma ?? 0.5) * 100)}%. Избыток сверх этого и есть след водяного знака.`
+      `Зелёный токен — фрагмент текста, которому правило метки давало преимущество в этой позиции. Детектор восстанавливает цвет по ключу и предыдущим токенам.\n\nЗелёных: ${greenCount} из ${T}. Без метки ожидается около ${(gamma * 100).toFixed(1)}%. Превышение этого уровня служит сигналом метки.\n\n` + counting
     );
   }
   tip("tip-z",
-    `Насколько это странно для обычного текста, в шагах обычного разброса.\n\n` +
-    `0 — ровно как случайность. 2 — уже редко. 4 — порог из статей: почти наверняка метка. Сейчас ${z.toFixed(2)}.\n\n` +
-    `Считается так: сдвиг среднего от честных 0.5 делят на обычный разброс. Чем больше токенов, тем меньший сдвиг уже даёт большой z. Отрицательный z значил бы «единиц меньше, чем у честной монетки».`
+    `z-оценка сравнивает найденный сигнал с обычным случайным разбросом. Без метки ожидается: ${baseline}. Чем больше положительное z, тем необычнее избыток для текста без метки.\n\nz около 0 — близко к ожидаемому; отрицательное z — ниже него; z = 4 — превышение на четыре стандартных отклонения, то есть четыре меры разброса.\n\nЭто приближённая статистика. На коротких текстах она ненадёжна. Подпись над шкалой выбирается по силе сигнала, а не по порогу z.`
   );
   tip("tip-p",
-    `Вероятность увидеть такой результат, если водяного знака не было и метки 0/1 выпадали честно.\n\n` +
-    `Сейчас ${pText}. Запись 1e-15 — это 0.000000000000001, меньше одного шанса на квадриллион.\n\n` +
-    `Маленькое p — не «текст плохой» и не «модель ошиблась». Это «так повезти без метки почти нельзя».`
+    `p-значение оценивает, как часто без водяного знака случайно получился бы такой же или более сильный сигнал. Оно вычисляется из z-оценки, которая измеряет превышение над ожидаемым уровнем.\n\nНапример, p = 0.01 означает примерно 1 такой случай на 100 при допущениях расчёта. Это не вероятность того, что текст написал человек или ИИ. Запись 1e-15 означает единицу, делённую на 10 в пятнадцатой степени.\n\nЧем меньше p, тем необычнее результат без метки. Оценка приближённая; на коротких текстах ей нельзя доверять как точной вероятности.`
   );
   tip("verdict-note",
-    `Эта фраза пересказывает z и p обычными словами.\n\n` +
-    `«Без метки» — если бы единицы и нули выпадали честно, примерно поровну.\n\n` +
-    `«Случайно с вероятностью ${pText}» — это p-значение.\n\n` +
-    `«Порог z > 4» — в статьях считают, что z больше 4 уже достаточно, чтобы сказать: текст помечен. Сейчас z = ${z.toFixed(2)}.\n\n` +
-    note
+    (tournament
+      ? `В турнире каждый токен — слово или часть слова — получает оценку 0 или 1 в каждом раунде. Оценка 1 даёт преимущество при выборе продолжения; сами цифры в текст не вставляются.\n\nЗдесь единиц ${(meanG * 100).toFixed(1)}%. Без метки ожидается около 50%; избыток служит её сигналом. Раундов на токен: ${m}. В настройках это число обозначено m.`
+      : `Зелёные токены — слова или части слов, которым правило метки даёт преимущество. Здесь их ${T ? (greenCount / T * 100).toFixed(1) : "0"}%. Без метки ожидается около ${(gamma * 100).toFixed(1)}%: эту долю задаёт параметр γ.`) +
+    `\n\n${counting}\n\n` +
+    (!ready ? "Пока данных мало: результат может сильно измениться при добавлении текста. " : "") +
+    "Процент над шкалой показывает условную силу сигнала. Отсутствие сигнала не доказывает, что текст написал человек: метку могли не ставить, изменить текст или проверить с другим ключом."
   );
 }
 
@@ -808,10 +784,15 @@ function paintDetection(msg) {
     chips[i].classList.toggle("green", color && known && !!msg.flags[flag]);
     chips[i].classList.toggle("red", color && known && !msg.flags[flag]);
     const base = chips[i].title.split(" · ")[0];
-    chips[i].title = tournament && color && known ? `${base} · средний g = ${msg.perTokenScore[flag].toFixed(2)}` : base;
+    chips[i].title = !color || !known ? base : tournament
+      ? `${base} · В ${(msg.perTokenScore[flag] * 100).toFixed(0)}% раундов правило турнира дало этому токену оценку 1 — преимущество при выборе. Зелёный цвет означает не меньше половины таких раундов, красный — меньше половины.`
+      : `${base} · ${msg.flags[flag] ? "Зелёный: правило метки даёт этому варианту преимущество." : "Красный: правило метки не даёт этому варианту преимущества."} Цвет одного токена не определяет результат проверки всего текста.`;
   }
-  els.legendHi.textContent = tournament ? "g ≥ 0.5" : "зелёный список";
-  els.legendLo.textContent = tournament ? "g < 0.5" : "красный список";
+  els.legendHi.textContent = tournament ? "единиц ≥ 50%" : "зелёный список";
+  els.legendLo.textContent = tournament ? "единиц < 50%" : "красный список";
+  els.colorText.closest("label").dataset.tip = tournament
+    ? "Показывает оценки отдельных токенов — слов или частей слов. В каждом раунде правило турнира даёт токену 0 или 1; единица даёт преимущество при генерации. Зелёный цвет: единиц не меньше половины, красный: меньше половины. Цвет не означает, что слово правильное или ошибочное. Выключение раскраски не меняет проверку."
+    : "Показывает, какие токены — слова или части слов — входят в зелёный и красный списки по ключу детектора. Зелёные получают преимущество при генерации с меткой. Отдельное зелёное слово встречается и без метки; важна общая доля. Выключение раскраски не меняет проверку.";
   setLegend(color);
   renderVerdict(msg);
 }
@@ -828,7 +809,7 @@ function renderTokenChips(tokens) {
     const span = document.createElement("span");
     span.className = "tok";
     span.textContent = tok.text;
-    span.title = `токен ${tok.id}`;
+    span.title = `Токен — фрагмент текста: слово, часть слова или знак препинания. Номер в словаре модели: ${tok.id}.`;
     els.tokens.appendChild(span);
   }
 }
@@ -915,6 +896,8 @@ els.prompt.addEventListener("keydown", (e) => {
 
 /* ── init ── */
 const hintPop = document.getElementById("hint-pop");
+let hintAnchor = null;
+let hintHideTimer;
 function tipHost(node) {
   const el = node?.closest?.("[data-tip], label");
   if (!el) return null;
@@ -925,6 +908,8 @@ function tipHost(node) {
 function placeHint(anchor) {
   const text = anchor.dataset.tip;
   if (!text) return;
+  clearTimeout(hintHideTimer);
+  hintAnchor = anchor;
   hintPop.hidden = false;
   hintPop.textContent = text;
   const margin = 8;
@@ -940,28 +925,43 @@ function placeHint(anchor) {
   hintPop.style.top = `${top}px`;
 }
 function hideHint() {
+  clearTimeout(hintHideTimer);
   hintPop.hidden = true;
+  hintAnchor = null;
 }
 document.addEventListener("mouseover", (e) => {
+  if (hintPop.contains(e.target)) {
+    clearTimeout(hintHideTimer);
+    return;
+  }
   const host = tipHost(e.target);
   if (!host) return;
   placeHint(host);
 });
 document.addEventListener("mouseout", (e) => {
   const host = tipHost(e.target);
-  if (!host) return;
-  if (host.contains(e.relatedTarget)) return;
-  hideHint();
+  if (!host && !hintPop.contains(e.target)) return;
+  if (hintAnchor?.contains(e.relatedTarget) || hintPop.contains(e.relatedTarget)) return;
+  // Allow crossing the gap into a long tooltip to scroll its text.
+  hintHideTimer = setTimeout(hideHint, 180);
 });
 document.addEventListener("focusin", (e) => {
   const host = e.target.closest?.("[data-tip]");
   if (host?.dataset.tip) placeHint(host);
 });
 document.addEventListener("focusout", hideHint);
-window.addEventListener("scroll", hideHint, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideHint();
+});
+window.addEventListener("scroll", (e) => {
+  if (e.target === hintPop) return;
+  if (hintAnchor?.contains(document.activeElement)) placeHint(hintAnchor);
+  else hideHint();
+}, true);
+window.addEventListener("resize", hideHint);
 
 syncParamVisibility();
 refreshModelOptions(lastBackend);
-els.statusText.title = `build ${APP_VERSION}`;
+els.statusText.title = `Версия программы: ${APP_VERSION}`;
 updateButtons();
 startLoad({ modelId: els.model.value, device: forcedDevice, dtype: forcedDtype });

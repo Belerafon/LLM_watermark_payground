@@ -17,7 +17,7 @@ import {
   InterruptableStoppingCriteria,
   env,
 } from "./vendor/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=9";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=2";
 
 // Offline: weights live under /models/, the ONNX Runtime WASM files under /vendor/.
@@ -445,6 +445,7 @@ function runDetect(p) {
         meanG: r.meanG,
         expectedG: r.expectedG,
         T: r.T,
+        totalT: r.totalT,
         m: r.m,
         h: p.h,
         z: r.z,
@@ -464,6 +465,7 @@ function runDetect(p) {
       flags: result.flags,
       greenCount: result.greenCount,
       T: result.T,
+      totalT: result.totalT,
       z: result.z,
       pValue: result.pValue,
       gamma: p.gamma,

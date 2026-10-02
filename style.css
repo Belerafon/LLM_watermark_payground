@@ -189,6 +189,7 @@ input:disabled { opacity: 0.45; cursor: not-allowed; }
   max-width: min(420px, calc(100vw - 16px));
   max-height: min(50vh, calc(100vh - 16px));
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--text);
@@ -199,7 +200,7 @@ input:disabled { opacity: 0.45; cursor: not-allowed; }
   text-align: left;
   white-space: pre-line;
   box-shadow: var(--shadow);
-  pointer-events: none;
+  pointer-events: auto;
 }
 .segmented label.hover-tip { display: inline-flex; }
 h1.hover-tip { display: inline-block; }
