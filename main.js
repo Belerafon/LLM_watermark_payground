@@ -410,7 +410,7 @@ function handleMessage(msg) {
         haveGeneration = (msg.tokens?.length ?? 0) > 0;
         const skip = msg.colorFrom ?? 0;
         if (skip > 0) {
-          const head = skip === 1 ? "Первое слово не раскрашено: перед ним не из чего считать метку." : `Первые ${skip} ${skip < 5 ? "слова" : "слов"} не раскрашены: перед ними не из чего считать метку.`;
+          const head = skip === 1 ? "Первое слово в раскраску не входит." : `Первые ${skip} ${skip < 5 ? "слова" : "слов"} в раскраску не входят.`;
           els.verdictNote.textContent += ` ${head}`;
         }
         setStatus("Проверен вставленный текст.");
