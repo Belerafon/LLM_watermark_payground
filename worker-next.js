@@ -1,35 +1,29 @@
 /**
- * Web worker for models that need Transformers.js v4 (Gemma 4).
- * Qwen3-4B stays on worker.js / Transformers.js 3.7.2.
- *
- * Gemma 4 E4B is loaded as text-only: Gemma4ForCausalLM makes the library skip
- * the vision and audio encoders. Watermarking still goes through logits_processor.
+ * Web worker for LFM2 and SmolLM3, using Transformers.js v4 preview.
  */
 import {
-  AutoProcessor,
-  Gemma4ForCausalLM,
+  AutoTokenizer,
+  AutoModelForCausalLM,
+  Lfm2ForCausalLM,
   TextStreamer,
   LogitsProcessor,
   LogitsProcessorList,
   InterruptableStoppingCriteria,
   env,
-} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
+} from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@next/dist/transformers.min.js";
 import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=4";
 
 // Local folder if present (start.bat). Otherwise Hugging Face Hub, so GitHub Pages
 // does not need the multi-GB weights in the repo.
-// WASM stays next to this file; v4 would otherwise fetch it from jsDelivr.
+// Model files are fetched from Hugging Face; the preview runtime uses its matching
+// ONNX Runtime Web assets from the CDN.
 env.allowLocalModels = true;
 env.allowRemoteModels = true;
 env.localModelPath = "/models/";
 env.useBrowserCache = true;
-const wasmBase = new URL("./vendor4/", import.meta.url);
-env.backends.onnx.wasm.wasmPaths = {
-  // 4.3 uses the asyncify build even for WebGPU (jsep is not the default).
-  mjs: new URL("ort-wasm-simd-threaded.asyncify.mjs", wasmBase).href,
-  wasm: new URL("ort-wasm-simd-threaded.asyncify.wasm", wasmBase).href,
-};
+// @next has its own ONNX Runtime version; leave wasmPaths at the matching
+// Transformers.js defaults instead of pointing it at the app's pinned v4.3 files.
 
 let processor = null;
 let tokenizer = null;
@@ -219,7 +213,7 @@ async function pickBackend(forced) {
     const dev = await adapter.requestDevice();
     dev.destroy?.();
     out.device = "webgpu";
-    if (!out.f16) out.note = "adapter lacks shader-f16; Gemma 4 is bundled only as q4f16";
+    if (!out.f16) out.note = "adapter lacks shader-f16; this model is bundled only as q4f16";
     return out;
   } catch (e) {
     if (forced === "webgpu") {
@@ -280,8 +274,8 @@ async function loadModel(msg) {
     });
 
     setPhase("download");
-    processor = await AutoProcessor.from_pretrained(modelId);
-    tokenizer = processor.tokenizer;
+    tokenizer = await AutoTokenizer.from_pretrained(modelId);
+    processor = tokenizer;
     log.push("tokenizer");
 
     const isWeightFile = (f) => /\.onnx(_data(_\d+)?)?$/.test(f ?? "");
@@ -303,8 +297,8 @@ async function loadModel(msg) {
         total: total || expectedBytes,
       });
     };
-    // Gemma4ForCausalLM + a ConditionalGeneration config skips vision/audio sessions.
-    model = await Gemma4ForCausalLM.from_pretrained(modelId, {
+    const ModelClass = info.architecture === "lfm2" ? Lfm2ForCausalLM : AutoModelForCausalLM;
+    model = await ModelClass.from_pretrained(modelId, {
       device,
       dtype,
       progress_callback: (p) => {

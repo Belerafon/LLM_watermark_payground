@@ -25,7 +25,11 @@
       <div class="field">
         <label for="model">Модель</label>
         <select id="model">
-          <option value="onnx-community/gemma-4-E4B-it-ONNX" selected>Gemma 4 E4B (~4.9 ГБ, только WebGPU)</option>
+          <option value="onnx-community/LFM2-700M-ONNX">LFM2-700M — ~0,5 ГБ (Q4F16, WebGPU)</option>
+          <option value="onnx-community/Qwen3-1.7B-ONNX">Qwen3-1.7B — ~1,4 ГБ (Q4F16)</option>
+          <option value="HuggingFaceTB/SmolLM3-3B-ONNX">SmolLM3-3B — ~2,1 ГБ (Q4F16, WebGPU)</option>
+          <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B — ~3,1 ГБ (Q4F16, WebGPU)</option>
+          <option value="onnx-community/gemma-4-E4B-it-ONNX" selected>Gemma 4 E4B — ~4,9 ГБ (Q4F16, WebGPU)</option>
         </select>
         <div class="model-status">
           <span id="status-text">Запуск…</span>
@@ -190,6 +194,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=50"></script>
+  <script type="module" src="main.js?v=53"></script>
 </body>
 </html>

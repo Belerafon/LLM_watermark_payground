@@ -18,14 +18,14 @@ import {
   env,
 } from "./vendor/transformers.min.js";
 import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
-import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=2";
+import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=4";
 
-// Offline: weights live under /models/, the ONNX Runtime WASM files under /vendor/.
-// Nothing is fetched from Hugging Face or jsDelivr.
+// Prefer local weights under /models/. GitHub Pages can fetch missing weights
+// from Hugging Face and keep them in the browser cache. ONNX Runtime WASM stays local.
 env.allowLocalModels = true;
-env.allowRemoteModels = false;
+env.allowRemoteModels = true;
 env.localModelPath = "/models/";
-env.useBrowserCache = false;
+env.useBrowserCache = true;
 env.backends.onnx.wasm.wasmPaths = new URL("./vendor/", import.meta.url).href;
 
 let tokenizer = null;

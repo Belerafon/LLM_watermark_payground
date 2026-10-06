@@ -2,7 +2,7 @@
 
 Локальная переработка [nohypeai/watermarking-playground](https://huggingface.co/spaces/nohypeai/watermarking-playground).
 
-Инференс идёт в браузере: Transformers.js и ONNX Runtime. Водяной знак ставится на логиты во время генерации. Сейчас это Gemma 4 E4B и турнирное семплирование в духе SynthID-Text, плюс зелёный/красный список Kirchenbauer.
+Инференс идёт в браузере: Transformers.js и ONNX Runtime. Водяной знак ставится на логиты во время генерации. В списке есть Gemma 4 E2B/E4B, Qwen3-1.7B, LFM2-700M и SmolLM3-3B. Используются турнирное семплирование в духе SynthID-Text и зелёный/красный список Kirchenbauer.
 
 Оригинал — статический Space на Hugging Face. Модели там не лежали в репозитории страницы: браузер качал их с Hugging Face Hub. Здесь то же самое: если весов нет рядом со страницей, они скачиваются с `huggingface.co` при первом открытии.
 
@@ -21,6 +21,10 @@ GitHub Pages: Settings → Pages → Branch `main` → `/ (root)`. Адрес б
 GitHub Pages не ставит заголовки изоляции для WebGPU. Их добавляет `coi-serviceworker.js` (страница один раз перезагрузится).
 
 Локально по-прежнему `start.bat`. Если веса уже лежат в `models/`, страница возьмёт их и в сеть не пойдёт. Докачка: `download_gemma4.ps1`.
+
+В каталоге моделей также доступна Qwen3-1.7B в ONNX Q4F16 (примерно 1,4 ГБ). На GitHub Pages веса скачиваются из Hugging Face при первом выборе модели. Для локального запуска весов используйте `download_qwen3_1_7b.ps1`.
+
+Добавлены ONNX Q4F16 варианты LFM2-700M, Gemma 4 E2B и SmolLM3-3B. Они доступны в выпадающем списке; веса загружаются из Hugging Face при первом выборе. Для этих моделей нужен WebGPU. LFM2 и SmolLM3 используют preview-сборку Transformers.js v4 с CDN.
 
 ## Что в репозитории
 

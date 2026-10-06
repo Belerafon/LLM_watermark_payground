@@ -18,7 +18,7 @@ import {
   collectEnvironment,
   probeWasmHeapMB,
   createLog,
-} from "./models.js?v=3";
+} from "./models.js?v=4";
 import { expectedTournamentMean } from "./watermark.js?v=10";
 
 const $ = (id) => document.getElementById(id);
@@ -110,7 +110,12 @@ let crashReloads = 0;
 
 function spawnWorker(meta) {
   const id = ++attemptSeq;
-  const script = modelInfo(meta.modelId).runtime === "v4" ? "worker-v4.js?v=13" : "worker.js?v=13";
+  const runtime = modelInfo(meta.modelId).runtime;
+  const script = runtime === "v4"
+    ? "worker-v4.js?v=14"
+    : runtime === "v4next"
+      ? "worker-next.js?v=1"
+      : "worker.js?v=14";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -230,7 +235,7 @@ function refreshModelOptions(backend) {
     const dtype = m.webgpuOnly ? "q4f16" : backend?.dtype;
     const size = dtype ? sizeMB(opt.value, dtype) : null;
     const parts = [];
-    if (size) parts.push(`~${formatMB(size).replace(" GB", " ГБ").replace(" MB", " МБ")}`);
+    if (size) parts.push(`~${(size / 1000).toFixed(1).replace(".", ",")} ГБ`);
     if (m.webgpuOnly) parts.push("только WebGPU");
     opt.textContent = parts.length ? `${m.name} (${parts.join(", ")})` : m.name;
     opt.disabled = !!m.webgpuOnly && !!backend && backend.device !== "webgpu";

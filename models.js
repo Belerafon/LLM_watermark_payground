@@ -6,7 +6,7 @@
  */
 
 /** Build stamp shown in diagnostics, so a stale cached page is recognisable at once. */
-export const APP_VERSION = "2026-10-02.1";
+export const APP_VERSION = "2026-10-06.3";
 
 /**
  * Dropdown models, smallest first. `sizesMB` are the on-disk ONNX file sizes
@@ -27,6 +27,34 @@ export const MODELS = [
     id: "onnx-community/Qwen3-0.6B-ONNX",
     name: "Qwen3-0.6B",
     sizesMB: { q4f16: 570, q4: 919, q8: 618, fp16: 1203, fp32: 2405 },
+  },
+  {
+    id: "onnx-community/Qwen3-1.7B-ONNX",
+    name: "Qwen3-1.7B",
+    sizesMB: { q4f16: 1430, q4: 2150, q8: 1740, fp16: 3450, fp32: 6900 },
+  },
+  {
+    id: "onnx-community/LFM2-700M-ONNX",
+    name: "LFM2-700M",
+    sizesMB: { q4f16: 496 },
+    webgpuOnly: true,
+    runtime: "v4next",
+    architecture: "lfm2",
+  },
+  {
+    id: "onnx-community/gemma-4-E2B-it-ONNX",
+    name: "Gemma 4 E2B",
+    sizesMB: { q4f16: 3111 }, // text decoder + token embeddings
+    webgpuOnly: true,
+    runtime: "v4",
+  },
+  {
+    id: "HuggingFaceTB/SmolLM3-3B-ONNX",
+    name: "SmolLM3-3B",
+    sizesMB: { q4f16: 2120 },
+    webgpuOnly: true,
+    runtime: "v4next",
+    architecture: "causal",
   },
   {
     id: "onnx-community/gemma-4-E4B-it-ONNX",
