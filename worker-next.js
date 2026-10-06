@@ -21,6 +21,17 @@ env.allowLocalModels = true;
 env.allowRemoteModels = true;
 env.localModelPath = "/models/";
 env.useBrowserCache = true;
+const originalFetch = globalThis.fetch.bind(globalThis);
+function enforceCacheOnly() {
+  globalThis.fetch = (input, init) => {
+    const rawUrl = typeof input === "string" || input instanceof URL ? input : input.url;
+    const url = new URL(rawUrl, self.location.href);
+    if (url.hostname === "huggingface.co" || url.hostname === "hf.co") {
+      return Promise.reject(new Error("Модель загружается только из кэша, но в кэше не хватает файлов. Сначала нажмите «Скачать в кэш»."));
+    }
+    return originalFetch(input, init);
+  };
+}
 // @next has its own ONNX Runtime version; leave wasmPaths at the matching
 // Transformers.js defaults instead of pointing it at the app's pinned v4.3 files.
 
@@ -232,6 +243,7 @@ function seqLen(inputIds) {
 
 async function loadModel(msg) {
   modelId = msg.modelId;
+  if (msg.cacheOnly) enforceCacheOnly();
   const info = modelInfo(modelId);
   try {
     setPhase("backend");

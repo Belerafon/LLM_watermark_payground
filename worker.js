@@ -28,6 +28,18 @@ env.localModelPath = "/models/";
 env.useBrowserCache = true;
 env.backends.onnx.wasm.wasmPaths = new URL("./vendor/", import.meta.url).href;
 
+const originalFetch = globalThis.fetch.bind(globalThis);
+function enforceCacheOnly() {
+  globalThis.fetch = (input, init) => {
+    const rawUrl = typeof input === "string" || input instanceof URL ? input : input.url;
+    const url = new URL(rawUrl, self.location.href);
+    if (url.hostname === "huggingface.co" || url.hostname === "hf.co") {
+      return Promise.reject(new Error("Модель загружается только из кэша, но в кэше не хватает файлов. Сначала нажмите «Скачать в кэш»."));
+    }
+    return originalFetch(input, init);
+  };
+}
+
 let tokenizer = null;
 let model = null;
 let modelId = null; // model this worker is loading / has loaded
@@ -236,6 +248,7 @@ async function pickBackend(forced) {
 
 async function loadModel(msg) {
   modelId = msg.modelId;
+  if (msg.cacheOnly) enforceCacheOnly();
   const info = modelInfo(modelId);
   try {
     setPhase("backend");

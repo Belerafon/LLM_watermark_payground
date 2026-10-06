@@ -25,7 +25,8 @@ const $ = (id) => document.getElementById(id);
 
 const els = {
   model: $("model"),
-  loadModel: $("load-model"),
+  loadCachedModel: $("load-cached-model"),
+  downloadModel: $("download-model"),
   cachedModelList: $("cached-model-list"),
   statusText: $("status-text"),
   statusNote: $("status-note"),
@@ -78,6 +79,7 @@ const els = {
 
 let modelReady = false;
 let modelLoading = false;
+let downloadingModel = false;
 let generating = false;
 let haveGeneration = false;
 let outputDirty = false;
@@ -115,10 +117,10 @@ function spawnWorker(meta) {
   const id = ++attemptSeq;
   const runtime = modelInfo(meta.modelId).runtime;
   const script = runtime === "v4"
-    ? "worker-v4.js?v=15"
+    ? "worker-v4.js?v=16"
     : runtime === "v4next"
-      ? "worker-next.js?v=2"
-      : "worker.js?v=15";
+      ? "worker-next.js?v=3"
+      : "worker.js?v=16";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -159,9 +161,9 @@ function startLoad(meta) {
     hideDiagnostics();
   }
   updateButtons();
-  setStatus("Запускаю среду…");
+  setStatus(meta.cacheOnly ? "Загружаю модель из кэша…" : "Запускаю среду…");
   spawnWorker(meta);
-  send({ type: "load", modelId: meta.modelId, device: meta.device ?? null, dtype: meta.dtype ?? null });
+  send({ type: "load", modelId: meta.modelId, device: meta.device ?? null, dtype: meta.dtype ?? null, cacheOnly: !!meta.cacheOnly });
 }
 
 /* ── helpers ── */
@@ -229,8 +231,9 @@ function updateButtons() {
   const hasPaste = outputDirty;
   els.detectBtn.disabled = generating || !modelReady || (!haveGeneration && !hasPaste);
   els.stopBtn.hidden = !generating;
-  els.model.disabled = generating;
-  els.loadModel.disabled = generating || modelLoading;
+  els.model.disabled = generating || modelLoading || downloadingModel;
+  els.loadCachedModel.disabled = generating || modelLoading || downloadingModel || !cachedModels.has(els.model.value);
+  els.downloadModel.disabled = generating || modelLoading || downloadingModel;
 }
 
 /** Rewrite the dropdown labels with the sizes for the active backend/dtype. */
@@ -265,12 +268,12 @@ async function refreshCachedModels() {
       const repoPath = `/${entry.id}/resolve/`;
       const weights = requests.filter((request) => {
         const path = new URL(request.url).pathname;
-        return path.includes(repoPath) && /(?:^|\\/)[^/]+\\.onnx$/i.test(path);
+        return path.includes(repoPath) && /[^/]+\.onnx$/i.test(path);
       });
       if (!weights.length) continue;
       const variants = new Set();
       for (const request of weights) {
-        const match = new URL(request.url).pathname.match(/_(q4f16|q8|q4|fp16|fp32|int8|uint8)\\.onnx$/i);
+        const match = new URL(request.url).pathname.match(/_(q4f16|q8|q4|fp16|fp32|int8|uint8)\.onnx$/i);
         if (match) variants.add(match[1].toLowerCase());
       }
       const variantList = [...variants];
@@ -283,8 +286,89 @@ async function refreshCachedModels() {
     cachedModels = next;
     renderCachedModels();
     refreshModelOptions(lastBackend);
+    updateButtons();
   } catch (error) {
     els.cachedModelList.textContent = `Не удалось прочитать кэш: ${error.message ?? error}`;
+  }
+}
+
+async function getDownloadDtype(modelId) {
+  const info = modelInfo(modelId);
+  if (info.webgpuOnly) return "q4f16";
+  try {
+    const adapter = await navigator.gpu?.requestAdapter();
+    if (adapter && !adapter.isFallbackAdapter) {
+      return adapter.features.has("shader-f16") ? "q4f16" : "q4";
+    }
+  } catch {}
+  return "q8";
+}
+
+function isWantedModelFile(path) {
+  if (!path.includes("/")) {
+    return path !== "README.md" && path !== ".gitattributes" && !path.startsWith(".");
+  }
+  if (!path.startsWith("onnx/")) return false;
+  return /^(?:model|decoder_model_merged|embed_tokens)_q4f16\.onnx(?:_data(?:_\d+)?)?$/i.test(path.slice("onnx/".length));
+}
+
+async function downloadSelectedModel() {
+  const modelId = els.model.value;
+  const info = modelInfo(modelId);
+  downloadingModel = true;
+  els.progress.hidden = false;
+  els.progressFill.style.width = "0%";
+  showNote("");
+  updateButtons();
+  try {
+    const dtype = await getDownloadDtype(modelId);
+    const api = `https://huggingface.co/api/models/${modelId}/tree/main?recursive=true&expand=false`;
+    setStatus(`Получаю список файлов ${info.name}…`);
+    const listing = await fetch(api);
+    if (!listing.ok) throw new Error(`Список файлов Hugging Face вернул HTTP ${listing.status}.`);
+    const allFiles = await listing.json();
+    const files = allFiles
+      .filter((file) => file.type === "file" && isWantedModelFile(file.path))
+      .filter((file) => !file.path.startsWith("onnx/") || new RegExp(`_${dtype}\\.onnx(?:_data(?:_\\d+)?)?$`, "i").test(file.path.slice(5)))
+      .sort((a, b) => a.path.localeCompare(b.path));
+    if (!files.some((file) => /^onnx\/(?:model|decoder_model_merged)_/.test(file.path))) {
+      throw new Error(`В репозитории ${info.name} не нашёл ONNX-веса для ${dtype}.`);
+    }
+
+    const cache = await caches.open(MODEL_CACHE_NAME);
+    const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+    let finishedBytes = 0;
+    let saved = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const url = `https://huggingface.co/${modelId}/resolve/main/${file.path}`;
+      const request = new Request(url, { mode: "cors" });
+      const cached = await cache.match(request);
+      if (!cached) {
+        const pct = totalBytes ? Math.floor(100 * finishedBytes / totalBytes) : Math.floor(100 * i / files.length);
+        els.progressFill.style.width = `${pct}%`;
+        setStatus(`Скачиваю ${info.name}: ${file.path} (${i + 1}/${files.length})`);
+        const response = await fetch(request);
+        if (!response.ok) throw new Error(`${file.path}: HTTP ${response.status}.`);
+        await cache.put(request, response);
+        saved++;
+      }
+      finishedBytes += file.size || 0;
+      const pct = totalBytes ? Math.floor(100 * finishedBytes / totalBytes) : Math.floor(100 * (i + 1) / files.length);
+      els.progressFill.style.width = `${Math.min(100, pct)}%`;
+    }
+    log.push("cache-download", { modelId, dtype, files: files.length, saved, bytes: totalBytes });
+    await refreshCachedModels();
+    setStatus(saved ? `${info.name} скачана в кэш (${dtype}).` : `${info.name} уже полностью скачана (${dtype}).`);
+    els.progressFill.style.width = "100%";
+  } catch (error) {
+    setStatus(`Не удалось скачать ${info.name}: ${error.message ?? error}`, "error");
+    showNote("Уже скачанные файлы остались в кэше. Можно повторить скачивание: готовые файлы будут пропущены.");
+    await refreshCachedModels();
+  } finally {
+    downloadingModel = false;
+    els.progress.hidden = true;
+    updateButtons();
   }
 }
 
@@ -544,6 +628,7 @@ async function handleFailure(f) {
   const failure = {
     ...f,
     modelId: a.modelId,
+    cacheOnly: !!a.cacheOnly,
     requestedDevice: a.device ?? "auto",
     device: a.backend?.device ?? null,
     dtype: a.backend?.dtype ?? null,
@@ -574,6 +659,7 @@ async function handleFailure(f) {
         device: "wasm",
         dtype: forcedDtype,
         retriedWasm: true,
+        cacheOnly: a.cacheOnly,
         firstFailure: { phase: failure.phase, kind: failure.kind, raw: failure.raw, dtype: failure.dtype, elapsedMs: failure.elapsedMs, bytes: failure.bytes },
       });
       return;
@@ -607,7 +693,7 @@ async function handleFailure(f) {
       const name = modelInfo(a.modelId).name;
       log.push("reload-after-crash");
       setStatus(`Среда упала во время генерации (${shorten(failure.raw)}). Перезагружаю ${name}. Попробуйте меньше токенов.`, "warn");
-      startLoad({ modelId: a.modelId, device: a.backend?.device ?? a.device, dtype: forcedDtype, keepOutput: true });
+      startLoad({ modelId: a.modelId, device: a.backend?.device ?? a.device, dtype: forcedDtype, keepOutput: true, cacheOnly: a.cacheOnly });
       return;
     }
     setStatus(`Генерация не удалась: ${failure.raw}`, "error");
@@ -644,6 +730,7 @@ function describeFailure(f, report) {
         " Эта модель и так самая большая, которую сюда можно поставить."
       );
     case "network":
+      if (f.cacheOnly) return `В кэше не хватает файлов ${name}. Нажмите «Скачать в кэш», затем загрузите модель из кэша.`;
       return `Не удалось загрузить ${name} на этапе «${where}»: ${shorten(f.raw)}. Это офлайн-копия: веса должны быть в models/, рантайм в vendor4/.`;
     case "unsupported":
       return f.raw;
@@ -876,10 +963,12 @@ els.generateBtn.addEventListener("click", () => {
 
 els.stopBtn.addEventListener("click", () => send({ type: "interrupt" }));
 
-els.loadModel.addEventListener("click", () => {
+els.loadCachedModel.addEventListener("click", () => {
   crashReloads = 0;
-  startLoad({ modelId: els.model.value, device: forcedDevice, dtype: forcedDtype });
+  startLoad({ modelId: els.model.value, device: forcedDevice, dtype: forcedDtype, cacheOnly: true });
 });
+
+els.downloadModel.addEventListener("click", downloadSelectedModel);
 
 function detectParams() {
   const mode = getDetectMode();
@@ -997,7 +1086,7 @@ els.model.addEventListener("change", () => {
   updateButtons();
   showNote("");
   hideDiagnostics();
-  setStatus(`Выбрана ${modelInfo(modelId).name}. Нажмите «Загрузить модель».`);
+  setStatus(`Выбрана ${modelInfo(modelId).name}. Скачайте её или загрузите из кэша.`);
   if (WEBGPU_ONLY.has(modelId) && forcedDevice !== "webgpu" && lastBackend && lastBackend.device !== "webgpu") {
     setStatus(`${modelInfo(modelId).name} нужна WebGPU, а в этом браузере её нет (сейчас WASM). Возьмите Chrome или Edge.`, "error");
   }
@@ -1086,5 +1175,5 @@ syncParamVisibility();
 refreshModelOptions(lastBackend);
 els.statusText.title = `Версия программы: ${APP_VERSION}`;
 updateButtons();
-setStatus("Выберите модель и нажмите «Загрузить модель».");
+setStatus("Выберите модель: скачайте её в кэш или загрузите из кэша.");
 refreshCachedModels();

@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=25" />
+  <link rel="stylesheet" href="style.css?v=26" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -31,7 +31,10 @@
           <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B — ~3,1 ГБ (Q4F16, WebGPU)</option>
           <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B — ~4,9 ГБ (Q4F16, WebGPU)</option>
         </select>
-        <button type="button" id="load-model" class="btn primary model-load">Загрузить модель</button>
+        <div class="model-actions">
+          <button type="button" id="load-cached-model" class="btn primary">Загрузить из кэша</button>
+          <button type="button" id="download-model" class="btn secondary">Скачать в кэш</button>
+        </div>
         <section class="cached-models" aria-labelledby="cached-models-title">
           <h3 id="cached-models-title">Модели в кэше этого браузера</h3>
           <div id="cached-model-list" class="cached-model-list" aria-live="polite">Проверяю кэш…</div>
@@ -199,6 +202,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=56"></script>
+  <script type="module" src="main.js?v=57"></script>
 </body>
 </html>
