@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=26" />
+  <link rel="stylesheet" href="style.css?v=27" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -14,8 +14,40 @@
     <div class="header-inner">
       <a class="repo-link" href="https://github.com/Belerafon/LLM_watermark_payground">github.com/Belerafon/LLM_watermark_payground</a>
       <h1>Водяной знак в тексте модели</h1>
-      <p class="intro">Языковая модель пишет ответ и на каждом слове чуть сдвигает выбор по секретному правилу. Глазом это не видно, но проверкой можно понять, что текст помечен. Турнир здесь устроен по статье <a href="https://www.nature.com/articles/s41586-024-08025-4">SynthID-Text</a> (Dathathri et al., Nature, 2024).</p>
-      <p class="intro">Метку можно попытаться смыть. Перепиши кусок своими словами, вставь текст в поле ответа и нажми «Проверить». Если переписано достаточно, сигнал падает: проверка смотрит не на смысл, а на то, какие именно куски текста выпали.</p>
+      <div class="intro-grid">
+        <section class="intro-panel">
+          <h2>Как это работает</h2>
+          <p class="intro">Эта песочница — переработка <a href="https://huggingface.co/spaces/nohypeai/watermarking-playground">исходной веб-страницы на Hugging Face</a>. Модель пишет ответ, слегка меняя выбор слов по секретному правилу. Режим «Турнир» основан на статье <a href="https://www.nature.com/articles/s41586-024-08025-4">SynthID-Text</a> (Dathathri et al., Nature, 2024).</p>
+        </section>
+        <section class="intro-panel">
+          <h2>Как проверить</h2>
+          <p class="intro">Сгенерируйте текст или вставьте свой в поле «Текст» и нажмите «Проверить». Попробуйте переписать часть ответа своими словами: сигнал может ослабнуть, потому что проверка зависит от конкретных слов и их последовательности, а не от смысла.</p>
+        </section>
+      </div>
+      <section class="model-guide" aria-labelledby="model-guide-title">
+        <h3 id="model-guide-title">Модели и загрузка</h3>
+        <div class="model-guide-grid">
+          <div>
+            <h4>Какую выбрать</h4>
+            <ul>
+              <li><strong>Qwen3-0.6B (~0,6 ГБ)</strong> — самый лёгкий вариант; работает и на CPU через WASM, но медленнее.</li>
+              <li><strong>Qwen3-1.7B (~1,4 ГБ)</strong> — крупнее; нужна WebGPU, сборка может упереться в память браузера.</li>
+              <li><strong>SmolLM3-3B (~2,1 ГБ)</strong> — крупная модель, только WebGPU.</li>
+              <li><strong>Gemma 4 E2B (~3,1 ГБ)</strong> — нужна WebGPU; использует больше видеопамяти.</li>
+              <li><strong>Gemma 4 E4B (~4,9 ГБ)</strong> — нужна WebGPU, самая тяжёлая в списке; выбирайте, если меньшие модели не подходят.</li>
+            </ul>
+          </div>
+          <div>
+            <h4>Как запустить</h4>
+            <ol>
+              <li>Выберите модель и нажмите «Скачать в кэш». Это сохранит файлы в браузере, но не запустит модель.</li>
+              <li>Когда скачивание завершится, нажмите «Загрузить из кэша», чтобы поместить модель в память и начать генерацию.</li>
+              <li>При следующем посещении скачивать повторно не нужно. Удалите модель из списка кэша, чтобы освободить место на диске.</li>
+            </ol>
+            <p class="model-guide-note">Размер — это объём файлов на диске; для работы требуется дополнительная память. У моделей с пометкой WebGPU нужна совместимая видеокарта. 32 ГБ оперативной памяти сами по себе не гарантируют, что большая модель поместится в лимиты памяти браузера.</p>
+          </div>
+        </div>
+      </section>
     </div>
   </header>
 
@@ -202,6 +234,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=59"></script>
+  <script type="module" src="main.js?v=60"></script>
 </body>
 </html>

@@ -66,7 +66,7 @@ em.r { color: var(--red); font-style: normal; font-weight: 600; }
 
 /* ── Header ── */
 .site-header { padding: 18px 20px 8px; }
-.header-inner { max-width: 1440px; margin: 0 auto; }
+.header-inner { max-width: 1400px; margin: 0 auto; }
 .repo-link { display: inline-block; margin-bottom: 4px; font-size: 14px; font-weight: 600; }
 
 .badge {
@@ -90,11 +90,24 @@ h1 {
   margin: 8px 0 6px;
 }
 .intro {
-  max-width: 760px;
-  margin: 0 0 8px;
+  max-width: none;
+  margin: 0;
   font-size: 15px;
   line-height: 1.5;
   color: var(--text);
+}
+.intro-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.intro-panel { padding: 13px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.intro-panel h2 { margin: 0 0 5px; font: 600 1rem/1.35 var(--font-display); }
+.model-guide { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.model-guide h3 { margin: 0 0 9px; font-size: 15px; }
+.model-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.model-guide h4 { margin: 0 0 5px; font-size: 13px; }
+.model-guide ul, .model-guide ol { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.45; }
+.model-guide li + li { margin-top: 4px; }
+.model-guide-note { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
+@media (max-width: 760px) {
+  .intro-grid, .model-guide-grid { grid-template-columns: 1fr; gap: 10px; }
 }
 
 .grad {

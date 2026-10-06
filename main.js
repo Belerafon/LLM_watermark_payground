@@ -364,7 +364,7 @@ async function downloadSelectedModel() {
             if (now - lastPaint > 250) {
               const fraction = totalBytes ? (finishedBytes + fileLoaded) / totalBytes : (i + fileLoaded / Math.max(1, file.size || fileLoaded)) / files.length;
               els.progressFill.style.width = `${Math.min(100, Math.floor(100 * fraction))}%`;
-              setStatus(`Скачиваю ${info.name}: ${file.path} (${formatMB(fileLoaded)} / ${formatMB(file.size)})`);
+              setStatus(`Скачиваю ${info.name}: ${file.path} (${formatMB(fileLoaded / 1e6)} / ${formatMB((file.size || 0) / 1e6)})`);
               lastPaint = now;
             }
           }
@@ -1192,7 +1192,6 @@ window.addEventListener("resize", hideHint);
 
 syncParamVisibility();
 refreshModelOptions(lastBackend);
-els.statusText.title = `Версия программы: ${APP_VERSION}`;
 updateButtons();
 setStatus("Выберите модель: скачайте её в кэш или загрузите из кэша.");
 refreshCachedModels();
