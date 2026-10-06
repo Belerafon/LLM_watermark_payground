@@ -294,14 +294,14 @@ async function refreshCachedModels() {
 
 async function getDownloadDtype(modelId) {
   const info = modelInfo(modelId);
-  if (info.webgpuOnly) return "q4f16";
+  if (info.runtime === "v4" || info.runtime === "v4next") return "q4f16";
   try {
     const adapter = await navigator.gpu?.requestAdapter();
     if (adapter && !adapter.isFallbackAdapter) {
       return adapter.features.has("shader-f16") ? "q4f16" : "q4";
     }
   } catch {}
-  return "q8";
+  return info.webgpuOnly ? "q4f16" : "q8";
 }
 
 function isWantedModelFile(path) {
