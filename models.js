@@ -6,7 +6,7 @@
  */
 
 /** Build stamp shown in diagnostics, so a stale cached page is recognisable at once. */
-export const APP_VERSION = "2026-10-06.5";
+export const APP_VERSION = "2026-10-07.1";
 
 /**
  * Dropdown models, smallest first. `sizesMB` are the on-disk ONNX file sizes
@@ -49,6 +49,14 @@ export const MODELS = [
     webgpuOnly: true,
     runtime: "v4next",
     architecture: "causal",
+  },
+  {
+    id: "RASMUS/FrogNano-4B-2609-ONNX",
+    name: "FrogNano-4B-2609",
+    sizesMB: { q4f16: 2434 }, // 1990742016 + 444579840 + 655272 bytes ≈ 2434 MB on-disk ONNX
+    webgpuOnly: true,
+    runtime: "v4",
+    architecture: "qwen3_5_text",
   },
   {
     id: "onnx-community/gemma-4-E2B-it-ONNX",
