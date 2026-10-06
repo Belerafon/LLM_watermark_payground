@@ -350,7 +350,26 @@ async function downloadSelectedModel() {
         setStatus(`Скачиваю ${info.name}: ${file.path} (${i + 1}/${files.length})`);
         const response = await fetch(request);
         if (!response.ok) throw new Error(`${file.path}: HTTP ${response.status}.`);
-        await cache.put(request, response);
+        const body = response.clone().body;
+        const cacheWrite = cache.put(request, response);
+        if (body) {
+          const reader = body.getReader();
+          let fileLoaded = 0;
+          let lastPaint = 0;
+          for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            fileLoaded += chunk.value.byteLength;
+            const now = performance.now();
+            if (now - lastPaint > 250) {
+              const fraction = totalBytes ? (finishedBytes + fileLoaded) / totalBytes : (i + fileLoaded / Math.max(1, file.size || fileLoaded)) / files.length;
+              els.progressFill.style.width = `${Math.min(100, Math.floor(100 * fraction))}%`;
+              setStatus(`Скачиваю ${info.name}: ${file.path} (${formatMB(fileLoaded)} / ${formatMB(file.size)})`);
+              lastPaint = now;
+            }
+          }
+        }
+        await cacheWrite;
         saved++;
       }
       finishedBytes += file.size || 0;
