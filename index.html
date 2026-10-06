@@ -40,8 +40,8 @@
           <div>
             <h4>Как запустить</h4>
             <ol>
-              <li>Выберите модель и нажмите «Скачать в кэш». Это сохранит файлы в браузере, но не запустит модель.</li>
-              <li>Когда скачивание завершится, нажмите «Загрузить из кэша», чтобы поместить модель в память и начать генерацию.</li>
+              <li>Выберите модель и нажмите «Скачать и загрузить». После сохранения файлов модель автоматически загрузится в память.</li>
+              <li>Если модель уже в кэше, нажмите «Загрузить из кэша», чтобы запустить её без повторного скачивания.</li>
               <li>При следующем посещении скачивать повторно не нужно. Удалите модель из списка кэша, чтобы освободить место на диске.</li>
             </ol>
             <p class="model-guide-note">Размер — это объём файлов на диске; для работы требуется дополнительная память. У моделей с пометкой WebGPU нужна совместимая видеокарта. 32 ГБ оперативной памяти сами по себе не гарантируют, что большая модель поместится в лимиты памяти браузера.</p>
@@ -65,7 +65,7 @@
         </select>
         <div class="model-actions">
           <button type="button" id="load-cached-model" class="btn primary">Загрузить из кэша</button>
-          <button type="button" id="download-model" class="btn secondary">Скачать в кэш</button>
+          <button type="button" id="download-model" class="btn secondary">Скачать и загрузить</button>
         </div>
         <section class="cached-models" aria-labelledby="cached-models-title">
           <h3 id="cached-models-title">Модели в кэше этого браузера</h3>
@@ -234,6 +234,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=60"></script>
+  <script type="module" src="main.js?v=61"></script>
 </body>
 </html>

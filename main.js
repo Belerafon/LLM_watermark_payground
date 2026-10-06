@@ -378,8 +378,10 @@ async function downloadSelectedModel() {
     }
     log.push("cache-download", { modelId, dtype, files: files.length, saved, bytes: totalBytes });
     await refreshCachedModels();
-    setStatus(saved ? `${info.name} скачана в кэш (${dtype}).` : `${info.name} уже полностью скачана (${dtype}).`);
+    setStatus(`${info.name} скачана. Загружаю модель в память…`);
     els.progressFill.style.width = "100%";
+    crashReloads = 0;
+    startLoad({ modelId, device: forcedDevice, dtype: forcedDtype, cacheOnly: true });
   } catch (error) {
     setStatus(`Не удалось скачать ${info.name}: ${error.message ?? error}`, "error");
     showNote("Уже скачанные файлы остались в кэше. Можно повторить скачивание: готовые файлы будут пропущены.");
