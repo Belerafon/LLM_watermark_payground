@@ -18,13 +18,15 @@ import {
   collectEnvironment,
   probeWasmHeapMB,
   createLog,
-} from "./models.js?v=4";
+} from "./models.js?v=5";
 import { expectedTournamentMean } from "./watermark.js?v=10";
 
 const $ = (id) => document.getElementById(id);
 
 const els = {
   model: $("model"),
+  loadModel: $("load-model"),
+  cachedModelList: $("cached-model-list"),
   statusText: $("status-text"),
   statusNote: $("status-note"),
   backendBadge: $("backend-badge"),
@@ -75,6 +77,7 @@ const els = {
 };
 
 let modelReady = false;
+let modelLoading = false;
 let generating = false;
 let haveGeneration = false;
 let outputDirty = false;
@@ -112,10 +115,10 @@ function spawnWorker(meta) {
   const id = ++attemptSeq;
   const runtime = modelInfo(meta.modelId).runtime;
   const script = runtime === "v4"
-    ? "worker-v4.js?v=14"
+    ? "worker-v4.js?v=15"
     : runtime === "v4next"
-      ? "worker-next.js?v=1"
-      : "worker.js?v=14";
+      ? "worker-next.js?v=2"
+      : "worker.js?v=15";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -143,6 +146,7 @@ const send = (msg) => active?.worker.postMessage(msg);
 function startLoad(meta) {
   retireWorker();
   modelReady = false;
+  modelLoading = true;
   generating = false;
   streamSpan = null;
   haveGeneration = false; // the last generation lived in the old worker
@@ -226,19 +230,112 @@ function updateButtons() {
   els.detectBtn.disabled = generating || !modelReady || (!haveGeneration && !hasPaste);
   els.stopBtn.hidden = !generating;
   els.model.disabled = generating;
+  els.loadModel.disabled = generating || modelLoading;
 }
 
 /** Rewrite the dropdown labels with the sizes for the active backend/dtype. */
 function refreshModelOptions(backend) {
   for (const opt of els.model.options) {
     const m = modelInfo(opt.value);
-    const dtype = m.webgpuOnly ? "q4f16" : backend?.dtype;
+    const dtype = m.webgpuOnly
+      ? (backend?.device === "webgpu" ? backend.dtype : "q4f16")
+      : backend?.dtype;
     const size = dtype ? sizeMB(opt.value, dtype) : null;
     const parts = [];
     if (size) parts.push(`~${(size / 1000).toFixed(1).replace(".", ",")} ГБ`);
     if (m.webgpuOnly) parts.push("только WebGPU");
     opt.textContent = parts.length ? `${m.name} (${parts.join(", ")})` : m.name;
     opt.disabled = !!m.webgpuOnly && !!backend && backend.device !== "webgpu";
+  }
+}
+
+const MODEL_CACHE_NAME = "transformers-cache";
+let cachedModels = new Map();
+
+async function refreshCachedModels() {
+  if (!("caches" in window)) {
+    els.cachedModelList.textContent = "Этот браузер не поддерживает просмотр кэша моделей.";
+    return;
+  }
+  try {
+    const cache = await caches.open(MODEL_CACHE_NAME);
+    const requests = await cache.keys();
+    const next = new Map();
+    for (const entry of MODELS) {
+      const repoPath = `/${entry.id}/resolve/`;
+      const weights = requests.filter((request) => {
+        const path = new URL(request.url).pathname;
+        return path.includes(repoPath) && /(?:^|\\/)[^/]+\\.onnx$/i.test(path);
+      });
+      if (!weights.length) continue;
+      const variants = new Set();
+      for (const request of weights) {
+        const match = new URL(request.url).pathname.match(/_(q4f16|q8|q4|fp16|fp32|int8|uint8)\\.onnx$/i);
+        if (match) variants.add(match[1].toLowerCase());
+      }
+      const variantList = [...variants];
+      next.set(entry.id, {
+        count: weights.length,
+        variants: variantList,
+        size: variantList.length ? entry.sizesMB[variantList[0]] : null,
+      });
+    }
+    cachedModels = next;
+    renderCachedModels();
+    refreshModelOptions(lastBackend);
+  } catch (error) {
+    els.cachedModelList.textContent = `Не удалось прочитать кэш: ${error.message ?? error}`;
+  }
+}
+
+function renderCachedModels() {
+  els.cachedModelList.replaceChildren();
+  if (!cachedModels.size) {
+    els.cachedModelList.textContent = "Скачанных моделей пока нет.";
+    return;
+  }
+  for (const entry of MODELS) {
+    const cached = cachedModels.get(entry.id);
+    if (!cached) continue;
+    const row = document.createElement("div");
+    row.className = "cached-model-row";
+    const label = document.createElement("span");
+    const variant = cached.variants.length ? cached.variants.join(", ").toUpperCase() : "ONNX";
+    const size = cached.size ? ` · ~${(cached.size / 1000).toFixed(1).replace(".", ",")} ГБ` : "";
+    label.textContent = `${entry.name} (${variant}${size})`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn secondary small";
+    remove.textContent = "Удалить";
+    remove.addEventListener("click", () => deleteCachedModel(entry));
+    row.append(label, remove);
+    els.cachedModelList.append(row);
+  }
+}
+
+async function deleteCachedModel(entry) {
+  try {
+    if (active?.modelId === entry.id) {
+      retireWorker();
+      modelReady = false;
+      modelLoading = false;
+      generating = false;
+      haveGeneration = false;
+      els.backendBadge.hidden = true;
+      updateButtons();
+      setStatus("Модель выгружена перед удалением кэша.");
+    }
+    const cache = await caches.open(MODEL_CACHE_NAME);
+    const repoPath = `/${entry.id}/resolve/`;
+    let deleted = 0;
+    for (const request of await cache.keys()) {
+      if (new URL(request.url).pathname.includes(repoPath) && await cache.delete(request)) deleted++;
+    }
+    log.push("cache-delete", { modelId: entry.id, requests: deleted });
+    await refreshCachedModels();
+    setStatus(`Кэш модели ${entry.name} удалён.`);
+  } catch (error) {
+    setStatus(`Не удалось удалить кэш: ${error.message ?? error}`, "error");
   }
 }
 
@@ -353,6 +450,7 @@ function handleMessage(msg) {
 
     case "ready": {
       modelReady = true;
+      modelLoading = false;
       a.phase = "ready";
       a.workerLog = msg.log;
       els.progress.hidden = true;
@@ -367,6 +465,7 @@ function handleMessage(msg) {
       }
       if (DEBUG) buildReport(null).then(showDiagnostics, console.error);
       updateButtons();
+      refreshCachedModels();
       break;
     }
 
@@ -481,6 +580,7 @@ async function handleFailure(f) {
     }
 
     retireWorker();
+    modelLoading = false;
     els.progress.hidden = true;
     updateButtons();
     setStatus(`Не удалось загрузить ${name}. Собираю диагностику…`, "error");
@@ -493,6 +593,7 @@ async function handleFailure(f) {
     setStatus(describeFailure(failure, report), "error");
     showNote(adviceFor(failure, report));
     if (report) showDiagnostics(report);
+    refreshCachedModels();
     console.error("[watermarking-playground] load failed", report ?? failure);
     return;
   }
@@ -526,6 +627,14 @@ function describeFailure(f, report) {
   const on = f.device ? ` на ${f.device === "webgpu" ? "WebGPU" : "WASM"} (${f.dtype}${file ? `, файл ${formatMB(file)}` : ""})` : "";
   switch (f.kind) {
     case "oom":
+      if (f.modelId === "onnx-community/Qwen3-1.7B-ONNX") {
+        return (
+          `${name} не удалось собрать на этапе «${where}»${on}. ` +
+          "Здесь важна память графа ONNX в браузерном рантайме: 32 ГБ системной RAM не увеличивают отдельный лимит WebAssembly. " +
+          "Gemma и Qwen используют разные ONNX-графы и рабочие пути, поэтому успешный запуск Gemma не гарантирует, что Qwen поместится. " +
+          "Для Qwen3-1.7B отключён откат на более тяжёлый Q8 WASM; попробуйте Qwen3-0.6B."
+        );
+      }
       return (
         `${name} не влезла в память браузера на этапе «${where}»${on}. ` +
         `На загрузку нужно ≈${formatMB(need)} памяти WebAssembly (граф собирается, пока веса ещё лежат в памяти)` +
@@ -767,6 +876,11 @@ els.generateBtn.addEventListener("click", () => {
 
 els.stopBtn.addEventListener("click", () => send({ type: "interrupt" }));
 
+els.loadModel.addEventListener("click", () => {
+  crashReloads = 0;
+  startLoad({ modelId: els.model.value, device: forcedDevice, dtype: forcedDtype });
+});
+
 function detectParams() {
   const mode = getDetectMode();
   const { gamma, h, m, redWords } = readParams();
@@ -872,18 +986,21 @@ els.model.addEventListener("change", () => {
   const modelId = els.model.value;
   crashReloads = 0;
   log.push("user-select", { modelId });
+  retireWorker();
+  modelReady = false;
+  modelLoading = false;
+  generating = false;
+  haveGeneration = false;
+  resetOutput();
+  els.backendBadge.hidden = true;
+  els.progress.hidden = true;
+  updateButtons();
+  showNote("");
+  hideDiagnostics();
+  setStatus(`Выбрана ${modelInfo(modelId).name}. Нажмите «Загрузить модель».`);
   if (WEBGPU_ONLY.has(modelId) && forcedDevice !== "webgpu" && lastBackend && lastBackend.device !== "webgpu") {
-    retireWorker();
-    modelReady = false;
-    haveGeneration = false;
-    els.backendBadge.hidden = true;
-    updateButtons();
-    showNote("");
-    hideDiagnostics();
     setStatus(`${modelInfo(modelId).name} нужна WebGPU, а в этом браузере её нет (сейчас WASM). Возьмите Chrome или Edge.`, "error");
-    return;
   }
-  startLoad({ modelId, device: forcedDevice, dtype: forcedDtype });
 });
 
 document.querySelectorAll('input[name="wmMode"]').forEach((r) => r.addEventListener("change", () => {
@@ -969,4 +1086,5 @@ syncParamVisibility();
 refreshModelOptions(lastBackend);
 els.statusText.title = `Версия программы: ${APP_VERSION}`;
 updateButtons();
-startLoad({ modelId: els.model.value, device: forcedDevice, dtype: forcedDtype });
+setStatus("Выберите модель и нажмите «Загрузить модель».");
+refreshCachedModels();

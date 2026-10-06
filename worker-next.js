@@ -1,10 +1,9 @@
 /**
- * Web worker for LFM2 and SmolLM3, using Transformers.js v4 preview.
+ * Web worker for SmolLM3, using Transformers.js v4 preview.
  */
 import {
   AutoTokenizer,
   AutoModelForCausalLM,
-  Lfm2ForCausalLM,
   TextStreamer,
   LogitsProcessor,
   LogitsProcessorList,
@@ -12,7 +11,7 @@ import {
   env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@next/dist/transformers.min.js";
 import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
-import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=4";
+import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=5";
 
 // Local folder if present (start.bat). Otherwise Hugging Face Hub, so GitHub Pages
 // does not need the multi-GB weights in the repo.
@@ -297,8 +296,7 @@ async function loadModel(msg) {
         total: total || expectedBytes,
       });
     };
-    const ModelClass = info.architecture === "lfm2" ? Lfm2ForCausalLM : AutoModelForCausalLM;
-    model = await ModelClass.from_pretrained(modelId, {
+    model = await AutoModelForCausalLM.from_pretrained(modelId, {
       device,
       dtype,
       progress_callback: (p) => {

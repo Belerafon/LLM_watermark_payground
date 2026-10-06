@@ -18,7 +18,7 @@ import {
   env,
 } from "./vendor/transformers.min.js";
 import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
-import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=4";
+import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=5";
 
 // Prefer local weights under /models/. GitHub Pages can fetch missing weights
 // from Hugging Face and keep them in the browser cache. ONNX Runtime WASM stays local.

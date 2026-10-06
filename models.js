@@ -6,7 +6,7 @@
  */
 
 /** Build stamp shown in diagnostics, so a stale cached page is recognisable at once. */
-export const APP_VERSION = "2026-10-06.3";
+export const APP_VERSION = "2026-10-06.4";
 
 /**
  * Dropdown models, smallest first. `sizesMB` are the on-disk ONNX file sizes
@@ -32,14 +32,7 @@ export const MODELS = [
     id: "onnx-community/Qwen3-1.7B-ONNX",
     name: "Qwen3-1.7B",
     sizesMB: { q4f16: 1430, q4: 2150, q8: 1740, fp16: 3450, fp32: 6900 },
-  },
-  {
-    id: "onnx-community/LFM2-700M-ONNX",
-    name: "LFM2-700M",
-    sizesMB: { q4f16: 496 },
     webgpuOnly: true,
-    runtime: "v4next",
-    architecture: "lfm2",
   },
   {
     id: "onnx-community/gemma-4-E2B-it-ONNX",
@@ -65,7 +58,7 @@ export const MODELS = [
   },
 ];
 
-/** Models whose weights exceed what the 32-bit WASM backend can hold. */
+/** Models restricted to WebGPU because their graph/backend exceeds safe WASM memory. */
 export const WEBGPU_ONLY = new Set(MODELS.filter((m) => m.webgpuOnly).map((m) => m.id));
 
 /** dtypes transformers.js understands (used to validate the `?dtype=` override). */

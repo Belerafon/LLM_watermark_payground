@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=23" />
+  <link rel="stylesheet" href="style.css?v=25" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -25,12 +25,17 @@
       <div class="field">
         <label for="model">Модель</label>
         <select id="model">
-          <option value="onnx-community/LFM2-700M-ONNX">LFM2-700M — ~0,5 ГБ (Q4F16, WebGPU)</option>
-          <option value="onnx-community/Qwen3-1.7B-ONNX">Qwen3-1.7B — ~1,4 ГБ (Q4F16)</option>
+          <option value="onnx-community/Qwen3-0.6B-ONNX" selected>Qwen3-0.6B — ~0,6 ГБ</option>
+          <option value="onnx-community/Qwen3-1.7B-ONNX">Qwen3-1.7B — ~1,4 ГБ (нужна WebGPU, может не хватить памяти)</option>
           <option value="HuggingFaceTB/SmolLM3-3B-ONNX">SmolLM3-3B — ~2,1 ГБ (Q4F16, WebGPU)</option>
           <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B — ~3,1 ГБ (Q4F16, WebGPU)</option>
-          <option value="onnx-community/gemma-4-E4B-it-ONNX" selected>Gemma 4 E4B — ~4,9 ГБ (Q4F16, WebGPU)</option>
+          <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B — ~4,9 ГБ (Q4F16, WebGPU)</option>
         </select>
+        <button type="button" id="load-model" class="btn primary model-load">Загрузить модель</button>
+        <section class="cached-models" aria-labelledby="cached-models-title">
+          <h3 id="cached-models-title">Модели в кэше этого браузера</h3>
+          <div id="cached-model-list" class="cached-model-list" aria-live="polite">Проверяю кэш…</div>
+        </section>
         <div class="model-status">
           <span id="status-text">Запуск…</span>
           <span id="backend-badge" class="backend-badge" hidden></span>
@@ -194,6 +199,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=53"></script>
+  <script type="module" src="main.js?v=56"></script>
 </body>
 </html>
