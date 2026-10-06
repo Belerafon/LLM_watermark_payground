@@ -6,7 +6,7 @@
  */
 
 /** Build stamp shown in diagnostics, so a stale cached page is recognisable at once. */
-export const APP_VERSION = "2026-10-06.4";
+export const APP_VERSION = "2026-10-06.5";
 
 /**
  * Dropdown models, smallest first. `sizesMB` are the on-disk ONNX file sizes
@@ -35,19 +35,27 @@ export const MODELS = [
     webgpuOnly: true,
   },
   {
-    id: "onnx-community/gemma-4-E2B-it-ONNX",
-    name: "Gemma 4 E2B",
-    sizesMB: { q4f16: 3111 }, // text decoder + token embeddings
-    webgpuOnly: true,
-    runtime: "v4",
-  },
-  {
     id: "HuggingFaceTB/SmolLM3-3B-ONNX",
     name: "SmolLM3-3B",
     sizesMB: { q4f16: 2120 },
     webgpuOnly: true,
     runtime: "v4next",
     architecture: "causal",
+  },
+  {
+    id: "onnx-community/tiny-aya-earth-ONNX",
+    name: "Tiny Aya Earth",
+    sizesMB: { q4f16: 2333 },
+    webgpuOnly: true,
+    runtime: "v4next",
+    architecture: "causal",
+  },
+  {
+    id: "onnx-community/gemma-4-E2B-it-ONNX",
+    name: "Gemma 4 E2B",
+    sizesMB: { q4f16: 3111 }, // text decoder + token embeddings
+    webgpuOnly: true,
+    runtime: "v4",
   },
   {
     id: "onnx-community/gemma-4-E4B-it-ONNX",

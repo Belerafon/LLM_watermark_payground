@@ -15,7 +15,7 @@ import {
   env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
 import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
-import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=5";
+import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=6";
 
 // Local folder if present (start.bat). Otherwise Hugging Face Hub, so GitHub Pages
 // does not need the multi-GB weights in the repo.
@@ -30,7 +30,7 @@ function enforceCacheOnly() {
     const rawUrl = typeof input === "string" || input instanceof URL ? input : input.url;
     const url = new URL(rawUrl, self.location.href);
     if (url.hostname === "huggingface.co" || url.hostname === "hf.co") {
-      return Promise.reject(new Error("Модель загружается только из кэша, но в кэше не хватает файлов. Сначала нажмите «Скачать в кэш»."));
+      return Promise.reject(new Error("Модель загружается только из кэша, но в кэше не хватает файлов. Нажмите «Скачать и загрузить»."));
     }
     return originalFetch(input, init);
   };

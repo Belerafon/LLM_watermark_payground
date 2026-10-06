@@ -18,7 +18,7 @@ import {
   collectEnvironment,
   probeWasmHeapMB,
   createLog,
-} from "./models.js?v=5";
+} from "./models.js?v=6";
 import { expectedTournamentMean } from "./watermark.js?v=10";
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +28,7 @@ const els = {
   loadCachedModel: $("load-cached-model"),
   downloadModel: $("download-model"),
   cachedModelList: $("cached-model-list"),
+  activeModel: $("active-model"),
   statusText: $("status-text"),
   statusNote: $("status-note"),
   backendBadge: $("backend-badge"),
@@ -117,10 +118,10 @@ function spawnWorker(meta) {
   const id = ++attemptSeq;
   const runtime = modelInfo(meta.modelId).runtime;
   const script = runtime === "v4"
-    ? "worker-v4.js?v=16"
+    ? "worker-v4.js?v=17"
     : runtime === "v4next"
-      ? "worker-next.js?v=3"
-      : "worker.js?v=16";
+      ? "worker-next.js?v=4"
+      : "worker.js?v=17";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -149,6 +150,7 @@ function startLoad(meta) {
   retireWorker();
   modelReady = false;
   modelLoading = true;
+  els.activeModel.textContent = `Загружается: ${modelInfo(meta.modelId).name}`;
   generating = false;
   streamSpan = null;
   haveGeneration = false; // the last generation lived in the old worker
@@ -227,9 +229,9 @@ function showBackendBadge({ device, dtype }) {
 }
 
 function updateButtons() {
-  els.generateBtn.disabled = !modelReady || generating;
+  els.generateBtn.disabled = !modelReady || generating || modelLoading || downloadingModel;
   const hasPaste = outputDirty;
-  els.detectBtn.disabled = generating || !modelReady || (!haveGeneration && !hasPaste);
+  els.detectBtn.disabled = generating || modelLoading || downloadingModel || !modelReady || (!haveGeneration && !hasPaste);
   els.stopBtn.hidden = !generating;
   els.model.disabled = generating || modelLoading || downloadingModel;
   els.loadCachedModel.disabled = generating || modelLoading || downloadingModel || !cachedModels.has(els.model.value);
@@ -424,6 +426,7 @@ async function deleteCachedModel(entry) {
       retireWorker();
       modelReady = false;
       modelLoading = false;
+      els.activeModel.textContent = "Модель не загружена";
       generating = false;
       haveGeneration = false;
       els.backendBadge.hidden = true;
@@ -556,6 +559,7 @@ function handleMessage(msg) {
     case "ready": {
       modelReady = true;
       modelLoading = false;
+      els.activeModel.textContent = `Загружена: ${modelInfo(msg.modelId).name}`;
       a.phase = "ready";
       a.workerLog = msg.log;
       els.progress.hidden = true;
@@ -688,6 +692,7 @@ async function handleFailure(f) {
 
     retireWorker();
     modelLoading = false;
+    els.activeModel.textContent = "Модель не загружена";
     els.progress.hidden = true;
     updateButtons();
     setStatus(`Не удалось загрузить ${name}. Собираю диагностику…`, "error");
@@ -751,7 +756,7 @@ function describeFailure(f, report) {
         " Эта модель и так самая большая, которую сюда можно поставить."
       );
     case "network":
-      if (f.cacheOnly) return `В кэше не хватает файлов ${name}. Нажмите «Скачать в кэш», затем загрузите модель из кэша.`;
+      if (f.cacheOnly) return `В кэше не хватает файлов ${name}. Нажмите «Скачать и загрузить»: недостающие файлы скачаются, затем модель загрузится в память.`;
       return `Не удалось загрузить ${name} на этапе «${where}»: ${shorten(f.raw)}. Это офлайн-копия: веса должны быть в models/, рантайм в vendor4/.`;
     case "unsupported":
       return f.raw;
@@ -965,6 +970,10 @@ function fmtP(p) {
 /* ── user actions ── */
 
 els.generateBtn.addEventListener("click", () => {
+  if (!modelReady || !active?.worker) {
+    setStatus("Сначала загрузите модель в память.", "error");
+    return;
+  }
   const p = readParams();
   if (!p.prompt.trim()) {
     setStatus("Сначала напишите промпт.", "error");
@@ -1099,6 +1108,7 @@ els.model.addEventListener("change", () => {
   retireWorker();
   modelReady = false;
   modelLoading = false;
+  els.activeModel.textContent = "Модель не загружена";
   generating = false;
   haveGeneration = false;
   resetOutput();
@@ -1195,5 +1205,5 @@ window.addEventListener("resize", hideHint);
 syncParamVisibility();
 refreshModelOptions(lastBackend);
 updateButtons();
-setStatus("Выберите модель: скачайте её в кэш или загрузите из кэша.");
+setStatus("Выберите модель: нажмите «Скачать и загрузить» или загрузите уже скачанную из кэша.");
 refreshCachedModels();

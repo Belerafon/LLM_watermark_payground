@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=27" />
+  <link rel="stylesheet" href="style.css?v=28" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -30,9 +30,10 @@
           <div>
             <h4>Какую выбрать</h4>
             <ul>
-              <li><strong>Qwen3-0.6B (~0,6 ГБ)</strong> — самый лёгкий вариант; работает и на CPU через WASM, но медленнее.</li>
+              <li><strong>Qwen3-0.6B (~0,6 ГБ)</strong> — самый лёгкий вариант; работает и на CPU через WASM, но медленнее. На русском, по опыту, часто генерирует бессвязный текст.</li>
               <li><strong>Qwen3-1.7B (~1,4 ГБ)</strong> — крупнее; нужна WebGPU, сборка может упереться в память браузера.</li>
-              <li><strong>SmolLM3-3B (~2,1 ГБ)</strong> — крупная модель, только WebGPU.</li>
+              <li><strong>SmolLM3-3B (~2,1 ГБ)</strong> — только WebGPU; на русском, по опыту, тоже часто генерирует бессвязный текст.</li>
+              <li><strong><a href="https://huggingface.co/onnx-community/tiny-aya-earth-ONNX">Tiny Aya Earth</a> (~2,3 ГБ)</strong> — многоязычная модель с поддержкой русского, только WebGPU. Лицензия CC BY-NC 4.0.</li>
               <li><strong>Gemma 4 E2B (~3,1 ГБ)</strong> — нужна WebGPU; использует больше видеопамяти.</li>
               <li><strong>Gemma 4 E4B (~4,9 ГБ)</strong> — нужна WebGPU, самая тяжёлая в списке; выбирайте, если меньшие модели не подходят.</li>
             </ul>
@@ -60,6 +61,7 @@
           <option value="onnx-community/Qwen3-0.6B-ONNX" selected>Qwen3-0.6B — ~0,6 ГБ</option>
           <option value="onnx-community/Qwen3-1.7B-ONNX">Qwen3-1.7B — ~1,4 ГБ (нужна WebGPU, может не хватить памяти)</option>
           <option value="HuggingFaceTB/SmolLM3-3B-ONNX">SmolLM3-3B — ~2,1 ГБ (Q4F16, WebGPU)</option>
+          <option value="onnx-community/tiny-aya-earth-ONNX">Tiny Aya Earth — ~2,3 ГБ (Q4F16, WebGPU)</option>
           <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B — ~3,1 ГБ (Q4F16, WebGPU)</option>
           <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B — ~4,9 ГБ (Q4F16, WebGPU)</option>
         </select>
@@ -71,6 +73,7 @@
           <h3 id="cached-models-title">Модели в кэше этого браузера</h3>
           <div id="cached-model-list" class="cached-model-list" aria-live="polite">Проверяю кэш…</div>
         </section>
+        <div id="active-model" class="active-model">Модель не загружена</div>
         <div class="model-status">
           <span id="status-text">Запуск…</span>
           <span id="backend-badge" class="backend-badge" hidden></span>
@@ -234,6 +237,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=61"></script>
+  <script type="module" src="main.js?v=62"></script>
 </body>
 </html>
