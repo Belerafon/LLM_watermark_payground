@@ -6,7 +6,7 @@
  */
 
 /** Build stamp shown in diagnostics, so a stale cached page is recognisable at once. */
-export const APP_VERSION = "2026-10-07.2";
+export const APP_VERSION = "2026-10-07.3";
 
 /**
  * Dropdown models, smallest first. `sizesMB` are the on-disk ONNX file sizes
@@ -55,9 +55,8 @@ export const MODELS = [
     name: "FrogNano-4B-2609",
     sizesMB: { q4f16: 2434 }, // 1990742016 + 444579840 + 655272 bytes ≈ 2434 MB on-disk ONNX
     webgpuOnly: true,
-    // Prefer v4next (AutoModelForCausalLM) until worker-v4 gains Qwen3_5ForCausalLM.
-    // Export targets Transformers.js 4.3.0; @next also maps qwen3_5_text.
-    runtime: "v4next",
+    // worker-v4 + vendor4 ORT (asyncify) has CausalConvWithState; @next CDN ORT does not.
+    runtime: "v4",
     architecture: "qwen3_5_text",
   },
   {
