@@ -1,6 +1,9 @@
-const GOOD="https://raw.githubusercontent.com/Belerafon/LLM_watermark_payground/910e62f93677496c3c4a3f5981202d4c8b7e8c7e/main.js";
-let code=await(await fetch(GOOD)).text();
-code=code.replaceAll("models.js?v=6","models.js?v=7").replaceAll("worker-v4.js?v=17","worker-v4.js?v=18");
-const base=new URL("./",import.meta.url).href;
-code=code.replaceAll('from"./','from"'+base).replaceAll('new Worker("','new Worker("'+base);
-await import(URL.createObjectURL(new Blob([code],{type:"text/javascript"})));
+const parts = ["main.part0.js", "main.part1.js", "main.part2.js", "main.part3.js", "main.part4.js", "main.part5.js"];
+let code = "";
+for (const p of parts) {
+  const url = new URL(p, import.meta.url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load ${p}: ${res.status}`);
+  code += await res.text();
+}
+await import(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
