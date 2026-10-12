@@ -1253,7 +1253,10 @@ els.prompt.addEventListener("keydown", (e) => {
 
 /* ── init ── */
 const hintPop = document.getElementById("hint-pop");
+const HINT_SHOW_DELAY = 450; // ms a hover must persist before the tooltip appears
 let hintAnchor = null;
+let hintPending = null; // host whose tooltip is still waiting out the delay
+let hintShowTimer;
 let hintHideTimer;
 function tipHost(node) {
   const el = node?.closest?.("[data-tip], label");
@@ -1266,6 +1269,8 @@ function placeHint(anchor) {
   const text = anchor.dataset.tip;
   if (!text) return;
   clearTimeout(hintHideTimer);
+  clearTimeout(hintShowTimer);
+  hintPending = null;
   hintAnchor = anchor;
   hintPop.hidden = false;
   hintPop.textContent = text;
@@ -1283,6 +1288,8 @@ function placeHint(anchor) {
 }
 function hideHint() {
   clearTimeout(hintHideTimer);
+  clearTimeout(hintShowTimer);
+  hintPending = null;
   hintPop.hidden = true;
   hintAnchor = null;
 }
@@ -1293,12 +1300,29 @@ document.addEventListener("mouseover", (e) => {
   }
   const host = tipHost(e.target);
   if (!host) return;
-  placeHint(host);
+  clearTimeout(hintShowTimer);
+  if (host === hintAnchor) {
+    clearTimeout(hintHideTimer); // still hovering the same host: keep it open
+    return;
+  }
+  if (hintAnchor) {
+    placeHint(host); // another tooltip is already open: switch without delay
+    return;
+  }
+  hintPending = host;
+  hintShowTimer = setTimeout(() => {
+    if (hintPending === host) placeHint(host);
+  }, HINT_SHOW_DELAY);
 });
 document.addEventListener("mouseout", (e) => {
   const host = tipHost(e.target);
   if (!host && !hintPop.contains(e.target)) return;
   if (hintAnchor?.contains(e.relatedTarget) || hintPop.contains(e.relatedTarget)) return;
+  // Left before the show delay elapsed: cancel the pending tooltip.
+  if (hintPending) {
+    clearTimeout(hintShowTimer);
+    hintPending = null;
+  }
   // Allow crossing the gap into a long tooltip to scroll its text.
   hintHideTimer = setTimeout(hideHint, 180);
 });
