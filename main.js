@@ -1346,3 +1346,36 @@ refreshModelOptions(lastBackend);
 updateButtons();
 setStatus("Выберите модель: нажмите «Скачать и загрузить» или загрузите уже скачанную из кэша.");
 refreshCachedModels();
+
+/* ── page version: last commit hash + date in the header ── */
+const VERSION_REPO = "Belerafon/LLM_watermark_payground";
+
+async function loadPageVersion() {
+  const el = document.getElementById("page-version");
+  if (!el) return;
+  let info = null;
+  // Offline fallback: snapshot committed with the sources.
+  try {
+    const r = await fetch("version.json", { cache: "no-cache" });
+    if (r.ok) info = await r.json();
+  } catch { /* missing or offline */ }
+  // Live version: HEAD of the default branch — what GitHub Pages serves.
+  try {
+    const r = await fetch(`https://api.github.com/repos/${VERSION_REPO}/commits?per_page=1`);
+    if (r.ok) {
+      const [c] = await r.json();
+      if (c?.sha) info = { sha: c.sha, commit: c.sha.slice(0, 7), time: c.commit?.committer?.date };
+    }
+  } catch { /* offline: keep the snapshot */ }
+  if (!info?.commit) return;
+  const date = new Date(info.time);
+  if (Number.isNaN(date.getTime())) return;
+  el.textContent = `${info.commit} · ${date.toLocaleString("ru-RU", {
+    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  })}`;
+  el.href = info.sha
+    ? `https://github.com/${VERSION_REPO}/commit/${info.sha}`
+    : `https://github.com/${VERSION_REPO}/commits`;
+  el.hidden = false;
+}
+loadPageVersion();

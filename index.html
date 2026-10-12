@@ -12,7 +12,10 @@
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <a class="repo-link" href="https://github.com/Belerafon/LLM_watermark_payground">github.com/Belerafon/LLM_watermark_payground</a>
+      <div class="header-meta">
+        <a class="repo-link" href="https://github.com/Belerafon/LLM_watermark_payground">github.com/Belerafon/LLM_watermark_payground</a>
+        <a class="page-version hover-tip" id="page-version" tabindex="0" data-tip="Версия страницы: короткий хэш и время последнего коммита в репозитории. Ссылка ведёт на этот коммит на GitHub." hidden></a>
+      </div>
       <h1>Водяной знак в тексте модели</h1>
       <div class="intro-grid">
         <section class="intro-panel">
@@ -46,7 +49,7 @@
               <li>Если модель уже в кэше, нажмите «Загрузить из кэша», чтобы запустить её без повторного скачивания.</li>
               <li>При следующем посещении скачивать повторно не нужно. Удалите модель из списка кэша, чтобы освободить место на диске.</li>
             </ol>
-            <p class="model-guide-note">Размер — это объём файлов на диске; для работы требуется дополнительная память. У моделей с пометкой WebGPU нужна совместимая видеокарта. 32 ГБ оперативной памяти сами по себе не гарантируют, что большая модель поместится в лимиты памяти браузера.</p>
+            <p class="model-guide-note">Размер — это объём файлов на диске; для работы требуется дополнительная память. У моделей с пометкой WebGPU нужна совместимая видеокарта.</p>
           </div>
         </div>
       </section>
@@ -250,6 +253,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=71"></script>
+  <script type="module" src="main.js?v=72"></script>
 </body>
 </html>
