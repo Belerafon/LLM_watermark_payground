@@ -1253,7 +1253,7 @@ els.prompt.addEventListener("keydown", (e) => {
 
 /* ── init ── */
 const hintPop = document.getElementById("hint-pop");
-const HINT_SHOW_DELAY = 450; // ms a hover must persist before the tooltip appears
+const HINT_SHOW_DELAY = 800; // ms a hover must persist before the tooltip appears
 let hintAnchor = null;
 let hintPending = null; // host whose tooltip is still waiting out the delay
 let hintShowTimer;
@@ -1324,7 +1324,7 @@ document.addEventListener("mouseout", (e) => {
     hintPending = null;
   }
   // Allow crossing the gap into a long tooltip to scroll its text.
-  hintHideTimer = setTimeout(hideHint, 180);
+  hintHideTimer = setTimeout(hideHint, 300);
 });
 document.addEventListener("focusin", (e) => {
   const host = e.target.closest?.("[data-tip]");
@@ -1354,7 +1354,8 @@ async function loadPageVersion() {
   const el = document.getElementById("page-version");
   if (!el) return;
   let info = null;
-  // Offline fallback: snapshot committed with the sources.
+  // version.json is stamped by the deploy workflow with the exact commit
+  // being published (absent in a local checkout without one).
   try {
     const r = await fetch("version.json", { cache: "no-cache" });
     if (r.ok) info = await r.json();
