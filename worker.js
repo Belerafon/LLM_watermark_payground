@@ -17,7 +17,7 @@ import {
   InterruptableStoppingCriteria,
   env,
 } from "./vendor/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=11";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=6";
 
 // Prefer local weights under /models/. GitHub Pages can fetch missing weights
@@ -47,6 +47,12 @@ let device = null; // "webgpu" | "wasm" once chosen
 let dtype = null;
 // starting → backend → download → compile → ready ⇄ generate / detect
 let phase = "starting";
+
+/** Vocab size of the loaded model, for the official expected-mean formula. */
+function currentVocabSize() {
+  const v = Number(model?.config?.vocab_size);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
 
 // Last generation, kept so the detector can run on it with (possibly edited) params.
 let lastGen = null; // { ids: number[], promptLen: number }
@@ -449,6 +455,7 @@ function runDetect(p) {
         h: p.h,
         forcedRed,
         keySeed: keyToSeed(p.key),
+        vocabSize: currentVocabSize(),
       });
       post({
         type: "detected",
@@ -456,7 +463,9 @@ function runDetect(p) {
         flags: r.flags,
         perTokenScore: r.perTokenScore,
         meanG: r.meanG,
+        weightedMeanG: r.weightedMeanG,
         expectedG: r.expectedG,
+        expectedSource: r.expectedSource,
         T: r.T,
         totalT: r.totalT,
         m: r.m,

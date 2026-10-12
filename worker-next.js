@@ -10,7 +10,7 @@ import {
   InterruptableStoppingCriteria,
   env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@next/dist/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=11";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=6";
 
 // Local folder if present (start.bat). Otherwise Hugging Face Hub, so GitHub Pages
@@ -43,6 +43,12 @@ let device = null;
 let dtype = null;
 let phase = "starting";
 let lastGen = null;
+
+/** Vocab size of the loaded model, for the official expected-mean formula. */
+function currentVocabSize() {
+  const v = Number(model?.config?.vocab_size);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
 
 const log = createLog(60);
 const stoppingCriteria = new InterruptableStoppingCriteria();
@@ -508,13 +514,15 @@ function scoreGeneration(ids, promptLen, p) {
   const m = detect.m ?? p.m;
   const gamma = detect.gamma ?? p.gamma;
   if (scheme === "tournament") {
-    const r = detectTournament(ids, promptLen, { m, h, forcedRed, keySeed });
+    const r = detectTournament(ids, promptLen, { m, h, forcedRed, keySeed, vocabSize: currentVocabSize() });
     return {
       scheme: "tournament",
       flags: r.flags,
       perTokenScore: r.perTokenScore,
       meanG: r.meanG,
+      weightedMeanG: r.weightedMeanG,
       expectedG: r.expectedG,
+      expectedSource: r.expectedSource,
       T: r.T,
       totalT: r.totalT,
       m: r.m,
@@ -594,6 +602,7 @@ function runDetect(p, extra = null) {
         h: p.h,
         forcedRed,
         keySeed: keyToSeed(p.key),
+        vocabSize: currentVocabSize(),
       });
       post({
         type: "detected",
@@ -601,7 +610,9 @@ function runDetect(p, extra = null) {
         flags: r.flags,
         perTokenScore: r.perTokenScore,
         meanG: r.meanG,
+        weightedMeanG: r.weightedMeanG,
         expectedG: r.expectedG,
+        expectedSource: r.expectedSource,
         T: r.T,
         totalT: r.totalT,
         m: r.m,

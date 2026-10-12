@@ -9,7 +9,7 @@ LogitsProcessorList,
 InterruptableStoppingCriteria,
 env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=10";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=11";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=7";
 env.allowLocalModels = true;
 env.allowRemoteModels = true;
@@ -39,6 +39,12 @@ let device = null;
 let dtype = null;
 let phase = "starting";
 let lastGen = null;
+
+/** Vocab size of the loaded model, for the official expected-mean formula. */
+function currentVocabSize() {
+ const v = Number(model?.config?.vocab_size);
+ return Number.isFinite(v) && v > 0 ? v : 0;
+}
 const log = createLog(60);
 const stoppingCriteria = new InterruptableStoppingCriteria();
 const post = (msg) => self.postMessage(msg);
@@ -472,13 +478,15 @@ const h = detect.h ?? p.h;
 const m = detect.m ?? p.m;
 const gamma = detect.gamma ?? p.gamma;
 if (scheme === "tournament") {
- const r = detectTournament(ids, promptLen, { m, h, forcedRed, keySeed });
+ const r = detectTournament(ids, promptLen, { m, h, forcedRed, keySeed, vocabSize: currentVocabSize() });
  return {
  scheme: "tournament",
  flags: r.flags,
  perTokenScore: r.perTokenScore,
  meanG: r.meanG,
+ weightedMeanG: r.weightedMeanG,
  expectedG: r.expectedG,
+ expectedSource: r.expectedSource,
  T: r.T,
  totalT: r.totalT,
  m: r.m,
@@ -555,6 +563,7 @@ try {
   h: p.h,
   forcedRed,
   keySeed: keyToSeed(p.key),
+  vocabSize: currentVocabSize(),
  });
  post({
   type: "detected",
@@ -562,7 +571,9 @@ try {
   flags: r.flags,
   perTokenScore: r.perTokenScore,
   meanG: r.meanG,
+  weightedMeanG: r.weightedMeanG,
   expectedG: r.expectedG,
+  expectedSource: r.expectedSource,
   T: r.T,
   totalT: r.totalT,
   m: r.m,

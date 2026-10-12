@@ -214,15 +214,89 @@ export function tournamentSample(probs, seed, m, forcedRed = null, rng = Math.ra
   return sampleMultinomial(q, 1, rng)[0];
 }
 
-/**
- * Tournament-watermark detector: the mean g-value over all generated tokens and
- * all m layers. Under H0 each g ~ Bernoulli(0.5), so with N = T·m values
- *   z = (Σg − N/2) / sqrt(N/4).
+/* ────────────────────────────────────────────────────────────────────────────
+ * Official SynthID-Text detector scores, ported 1:1 from Google DeepMind's
+ * reference implementation (github.com/google-deepmind/synthid-text):
  *
- * @param {number[]} ids full token sequence (prompt + generation)
- * @param {number} startIndex index of the first generated token
- * @param {{m: number, h: number, forcedRed?: Set<number>|null, keySeed?: number}} params
+ *   - mean_score() and weighted_mean_score()  — src/synthid_text/detector_mean.py
+ *   - expected_mean_g_value()                 — src/synthid_text/g_value_expectations.py
+ *
+ * Both scoring functions take a g-value matrix [T][m] (one row per scored
+ * token, one column per tournament layer) and a mask [T] marking which rows
+ * count. Google's mask is context_repetition_mask × eos_token_mask: a
+ * repeated (n−1)-gram context is masked out entirely, whichever token follows
+ * it (compute_context_repetition_mask in logits_processing.py).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Default Weighted Mean weights: linspace(10, 1, depth) across tournament
+ * layers — the first round gets weight 10, the last gets 1.
+ * @param {number} depth watermarking depth (number of layers m)
+ * @returns {number[]}
  */
+export function layerWeights(depth) {
+  if (depth <= 1) return [1];
+  return Array.from({ length: depth }, (_, j) => 10 - (9 * j) / (depth - 1));
+}
+
+/**
+ * detector_mean.mean_score: the mean of all unmasked g-values.
+ * @param {number[][]} gValues matrix [T][m]
+ * @param {ArrayLike<number>} mask [T], 1 = use this token's g-values
+ * @returns {number}
+ */
+export function meanScore(gValues, mask) {
+  const depth = gValues.length ? gValues[0].length : 0;
+  let unmasked = 0;
+  let sum = 0;
+  for (let i = 0; i < gValues.length; i++) {
+    if (!mask[i]) continue;
+    unmasked++;
+    const row = gValues[i];
+    for (let j = 0; j < depth; j++) sum += row[j];
+  }
+  return depth > 0 && unmasked > 0 ? sum / (depth * unmasked) : 0.5;
+}
+
+/**
+ * detector_mean.weighted_mean_score: the mean of unmasked g-values with
+ * per-LAYER weights. Defaults to linearly decreasing weights from 10 to 1,
+ * normalised so they sum to the watermarking depth — exactly the original:
+ *   weights = linspace(10, 1, m);  weights *= m / sum(weights);
+ *   score = sum(g_values * weights * mask) / (m * num_unmasked)
+ * @param {number[][]} gValues matrix [T][m]
+ * @param {ArrayLike<number>} mask [T], 1 = use this token's g-values
+ * @param {number[]|null} weights optional per-layer weights
+ * @returns {number}
+ */
+export function weightedMeanScore(gValues, mask, weights = null) {
+  const depth = gValues.length ? gValues[0].length : 0;
+  if (depth <= 0) return 0.5;
+  const w = weights ?? layerWeights(depth);
+  const scale = depth / w.reduce((a, b) => a + b, 0);
+  let unmasked = 0;
+  let sum = 0;
+  for (let i = 0; i < gValues.length; i++) {
+    if (!mask[i]) continue;
+    unmasked++;
+    const row = gValues[i];
+    for (let j = 0; j < depth; j++) sum += w[j] * row[j];
+  }
+  return unmasked > 0 ? (sum * scale) / (depth * unmasked) : 0.5;
+}
+
+/**
+ * g_value_expectations.expected_mean_g_value for num_leaves = 2: the expected
+ * mean g-value of watermarked text when the model's next-token distribution
+ * is uniform over the vocabulary (Corollary 27, SynthID-Text supplementary
+ * information). Used as the reference level for the score scale.
+ * @param {number} vocabSize
+ * @returns {number}
+ */
+export function expectedMeanGValue(vocabSize) {
+  return 0.5 + 0.25 * (1 - 1 / vocabSize);
+}
+
 /**
  * UI reference mean g for a tournament with a fixed artificial distribution.
  * This is neither a ceiling nor a calibration for the loaded language model.
@@ -292,28 +366,59 @@ export function expectedTournamentMean(m) {
   return value;
 }
 
-export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keySeed = 0 }) {
+export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keySeed = 0, vocabSize = 0 }) {
+  // g-value matrix [T][m], rebuilt exactly as SynthIDLogitsProcessor
+  // .compute_g_values would produce it for detection.
+  const gValues = [];
+  const mask = [];
   const perTokenScore = [];
-  const seen = new Set();
+  const seenContext = new Set();
   let T = 0;
   let sumG = 0;
   for (let i = startIndex; i < ids.length; i++) {
     const ctx = ids.slice(Math.max(0, i - h), i);
     const seed = seedFromContext(ctx, keySeed);
+    const row = new Array(m);
     let s = 0;
-    for (let layer = 0; layer < m; layer++) s += gValue(seed, layer, ids[i], forcedRed);
+    for (let layer = 0; layer < m; layer++) {
+      const g = gValue(seed, layer, ids[i], forcedRed);
+      row[layer] = g;
+      s += g;
+    }
+    gValues.push(row);
     perTokenScore.push(s / m);
-    const pair = `${ctx.join(",")}:${ids[i]}`;
-    if (seen.has(pair)) continue;
-    seen.add(pair);
-    T++;
-    sumG += s;
+    // Official compute_context_repetition_mask: only the first occurrence of
+    // a context counts; a repeated (n−1)-gram is masked whatever token follows.
+    const contextKey = ctx.join(",");
+    const repeated = seenContext.has(contextKey);
+    mask.push(repeated ? 0 : 1);
+    if (!repeated) {
+      seenContext.add(contextKey);
+      T++;
+      sumG += s;
+    }
   }
+  const meanG = meanScore(gValues, mask);
+  const weightedMeanG = weightedMeanScore(gValues, mask);
   const N = T * m;
-  const meanG = N > 0 ? sumG / N : 0.5;
   const z = N > 0 ? (sumG - N / 2) / Math.sqrt(N / 4) : 0;
   const pValue = N > 0 ? 1 - normalCdf(z) : 1;
   const flags = perTokenScore.map((s) => s >= 0.5);
-  const expectedG = expectedTournamentMean(m);
-  return { flags, perTokenScore, meanG, T, totalT: perTokenScore.length, m, z, pValue, expectedG };
+  const officialVocab = Number.isFinite(vocabSize) && vocabSize > 0;
+  const expectedG = officialVocab ? expectedMeanGValue(vocabSize) : expectedTournamentMean(m);
+  return {
+    flags,
+    perTokenScore,
+    gValues,
+    mask,
+    meanG,
+    weightedMeanG,
+    T,
+    totalT: perTokenScore.length,
+    m,
+    z,
+    pValue,
+    expectedG,
+    expectedSource: officialVocab ? "official" : "synthetic",
+  };
 }
