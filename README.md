@@ -14,11 +14,15 @@
 
 ## Онлайн
 
-GitHub Pages: Settings → Pages → Branch `main` → `/ (root)`. Адрес будет `https://belerafon.github.io/LLM_watermark_payground/`.
+Деплой на GitHub Pages автоматический: пуш в `main` запускает `.github/workflows/pages.yml` — тесты, запись точной версии развёрнутого коммита в `version.json` (хэш и время показываются в шапке страницы) и публикация.
+
+Однократная настройка: Settings → Pages → Source: **GitHub Actions**. Адрес будет `https://belerafon.github.io/LLM_watermark_payground/`.
 
 Посетитель ничего не качает руками. Браузер сам берёт `onnx-community/gemma-4-E4B-it-ONNX` с Hugging Face. Это около 5 ГБ в кэш браузера, один раз. Нужны Chrome или Edge с WebGPU.
 
 GitHub Pages не ставит заголовки изоляции для WebGPU. Их добавляет `coi-serviceworker.js` (страница один раз перезагрузится).
+
+Локально по-прежнему `start.bat`. Для локальных запусков без сети `update_version.ps1` обновляет офлайн-снапшот версии; при деплое он перезаписывается точным коммитом.
 
 Локально по-прежнему `start.bat`. Если веса уже лежат в `models/`, страница возьмёт их и в сеть не пойдёт. Докачка: `download_gemma4.ps1`.
 

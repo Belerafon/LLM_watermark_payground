@@ -1,0 +1,58 @@
+# Deploys the playground to GitHub Pages on every push to main.
+# Runs the test suite, stamps version.json with the exact deployed commit
+# (shown in the page header), and publishes the site.
+#
+# One-time setup: repo Settings → Pages → Source: "GitHub Actions".
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests
+        run: node --test tests/watermark.test.mjs
+
+      - name: Stamp version.json with the deployed commit
+        run: |
+          sha="$(git rev-parse HEAD)"
+          short="${sha:0:7}"
+          time="$(git log -1 --format=%cI)"
+          printf '{"sha":"%s","commit":"%s","time":"%s"}\n' "$sha" "$short" "$time" > version.json
+          echo "Page version: $short ($time)"
+
+      - name: Remove repository metadata from the site
+        run: rm -rf .git
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

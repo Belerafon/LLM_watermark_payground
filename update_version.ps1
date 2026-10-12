@@ -1,12 +1,15 @@
 # Regenerates version.json — the offline snapshot of the page version shown in
-# the header (short commit hash + commit time). Run after committing changes:
+# the header (short commit hash + commit time). Used for local runs; GitHub
+# Pages deployments stamp the exact deployed commit in .github/workflows.
 #
-#   git commit -m "..."
 #   powershell -ExecutionPolicy Bypass -File update_version.ps1
-#   git add version.json; git commit -m "Update version snapshot"; git push
+#   git add version.json; git commit -m "Update version snapshot"
 #
 # The page first shows this snapshot, then refreshes it from the GitHub API,
 # so a stale snapshot is harmless.
+
+$ErrorActionPreference = "Stop"
+Set-Location $PSScriptRoot
 
 $sha = git log -1 --format="%H"
 $short = git log -1 --format="%h"
