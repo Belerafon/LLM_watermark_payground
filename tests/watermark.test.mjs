@@ -383,6 +383,7 @@ test("the badge shows only the strength percent; z lives in the stats table", ()
   assert.doesNotMatch(node("verdictConf").textContent, /z|·/);
   assert.equal(node("statZ").textContent, "2.20"); // z stays in the stats row
   assert.ok(node("verdictConf").dataset.tip.length > 0);
+  assert.equal(node("copyVerdict").disabled, false); // copy action unlocks with the verdict
 });
 
 test("null z is approximately standard normal across random unmarked sequences", () => {

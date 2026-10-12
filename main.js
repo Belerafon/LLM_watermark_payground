@@ -77,6 +77,8 @@ const els = {
   statZ: $("stat-z"),
   statP: $("stat-p"),
   verdictNote: $("verdict-note"),
+  copyOutput: $("copy-output"),
+  copyVerdict: $("copy-verdict"),
 };
 
 let modelReady = false;
@@ -873,10 +875,77 @@ els.copyDiag.addEventListener("click", async () => {
   }, 2000);
 });
 
+/* ── copy buttons: the text and the detector readings ── */
+
+/** Copy to the clipboard and flash the button's check icon. */
+async function copyWithFeedback(button, text) {
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch {
+    // Clipboard API unavailable (non-secure context): hidden textarea fallback.
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    ta.remove();
+  }
+  if (ok) {
+    button.classList.add("copied");
+    setTimeout(() => button.classList.remove("copied"), 1600);
+  }
+}
+
+/** Plain text of the answer as shown in the output card, without colours. */
+function outputPlainText() {
+  const echo = els.promptEcho.textContent;
+  const chips = Array.from(els.tokens.children).map((c) => c.textContent).join("");
+  return (echo + chips).trim();
+}
+
+/**
+ * Compact plain-text summary of the detector readings, built from the very
+ * numbers on screen so the paste always matches the display:
+ *
+ *   Вердикт: Сильный сигнал метки · сила 100%
+ *   детектор: SynthID · 15 раундов
+ *   взвешенное среднее: 54.2% (399 × 15)
+ *   среднее: 53.9%
+ *   z-оценка: 6.01
+ *   p-значение: 9.3e-10
+ */
+function verdictPlainText() {
+  if (!lastPaint) return "";
+  const lines = [
+    `Вердикт: ${els.verdictLabel.textContent} · ${els.verdictConf.textContent}`,
+    `детектор: ${els.statScheme.textContent}`,
+    `${els.statFirstLabel.textContent}: ${els.statGreen.textContent}`,
+  ];
+  if (lastPaint.scheme === "tournament") lines.push(`среднее: ${els.statMean.textContent}`);
+  lines.push(`z-оценка: ${els.statZ.textContent}`, `p-значение: ${els.statP.textContent}`);
+  return lines.join("\n");
+}
+
+els.copyOutput.addEventListener("click", () => {
+  const text = outputPlainText();
+  if (text) copyWithFeedback(els.copyOutput, text);
+});
+
+els.copyVerdict.addEventListener("click", () => {
+  const text = verdictPlainText();
+  if (text) copyWithFeedback(els.copyVerdict, text);
+});
+
 /* ── verdict rendering ── */
 
 function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, meanG, weightedMeanG, m, h, expectedG, expectedSource }) {
   els.verdict.hidden = false;
+  if (els.copyVerdict) els.copyVerdict.disabled = false;
   const tournament = scheme === "tournament";
   const plainMean = Number.isFinite(meanG) ? meanG : 0.5;
   // Headline number of the tournament scheme: the official Weighted Mean score.
@@ -1087,6 +1156,7 @@ function renderTokenChips(tokens) {
   els.placeholder.hidden = true;
   els.promptEcho.textContent = "";
   els.tokens.textContent = "";
+  if (els.copyOutput) els.copyOutput.disabled = tokens.length === 0;
   setLegend(false);
   for (const tok of tokens) {
     const span = document.createElement("span");
