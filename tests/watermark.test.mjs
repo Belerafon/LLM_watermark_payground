@@ -373,6 +373,18 @@ test("verdict, meter, z and p stay consistent for both schemes", () => {
   }
 });
 
+test("the badge shows only the strength percent; z lives in the stats table", () => {
+  const node = render({
+    scheme: "tournament", T: 300, totalT: 300, m: 20, h: 1, gamma: 0.5,
+    meanG: 0.5, weightedMeanG: 0.5, z: 2.2, pValue: 1 - normalCdf(2.2),
+    expectedG: 0.75, expectedSource: "official",
+  });
+  assert.match(node("verdictConf").textContent, /^сила \d+(,\d+)?(\.\d+)?%$/);
+  assert.doesNotMatch(node("verdictConf").textContent, /z|·/);
+  assert.equal(node("statZ").textContent, "2.20"); // z stays in the stats row
+  assert.ok(node("verdictConf").dataset.tip.length > 0);
+});
+
 test("null z is approximately standard normal across random unmarked sequences", () => {
   // Empirical check of the independence premise behind counting T·m trials:
   // under H0 each g-bit is an independent hash bit, so the one-sided 1%

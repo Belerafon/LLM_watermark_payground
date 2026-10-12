@@ -941,10 +941,11 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, me
   els.verdictLabel.className = `verdict-label ${labels[1]}`;
   els.verdictConf.hidden = false;
   els.meterFill.parentElement.hidden = false;
-  els.verdictConf.textContent = `сила ${pctText} · z ${zVal.toFixed(1)}`;
+  els.verdictConf.textContent = `сила ${pctText}`;
   els.meterFill.style.width = `${pct.toFixed(1)}%`;
+  // Plain-language tooltip: the technical details live on z/p in the stats table.
   els.verdictConf.dataset.tip =
-    `Шкала «сила» — условная величина статистического свидетельства, линейная по односторонней z-оценке: 0% при z = 0, около трети при z = 2, две трети при z = 4 и 100% при z = 6 (номинальное p ≈ 1e-9).\n\nПри нехватке данных заполнение пропорционально уменьшено: короткая последовательность не может выглядеть убедительной только из-за высокого расчётного z.\n\nЭто переформулировка z, а не вероятность авторства ИИ. Вероятность того, что текст создан ИИ, этим инструментом не вычисляется.`;
+    `«Сила» — насколько сигнал водяного знака выделяется на фоне обычного текста без метки, с учётом длины проверенного текста.\n\nЧем выше процент, тем необычнее такой сигнал для немаркированного текста. Небольшое превышение на длинном тексте весит больше, чем крупное на коротком.\n\nЕсли текста мало, процент намеренно занижен: короткий текст не даёт уверенного ответа.\n\nЭто не вероятность авторства ИИ — такую вероятность инструмент не вычисляет. Подробные числа с пояснениями — в таблице ниже (z-оценка и p-значение).`;
 
   els.statScheme.textContent = tournament ? `SynthID · ${m} раундов` : "зелёный список";
   els.statFirstLabel.textContent = tournament ? "взвешенное среднее" : "зелёные токены";
