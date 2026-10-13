@@ -17,7 +17,7 @@ import {
   InterruptableStoppingCriteria,
   env,
 } from "./vendor/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=13";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=14";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=6";
 
 // Prefer local weights under /models/. GitHub Pages can fetch missing weights
@@ -34,7 +34,7 @@ function enforceCacheOnly() {
     const rawUrl = typeof input === "string" || input instanceof URL ? input : input.url;
     const url = new URL(rawUrl, self.location.href);
     if (url.hostname === "huggingface.co" || url.hostname === "hf.co") {
-      return Promise.reject(new Error("Модель загружается только из кэша, но в кэше не хватает файлов. Нажмите «Скачать и загрузить»."));
+      return Promise.reject(new Error("Модель загружается только из кэша, но в кэше не хватает файлов. Выберите её и нажмите «Скачать выбранную модель и запустить»."));
     }
     return originalFetch(input, init);
   };
@@ -380,6 +380,18 @@ async function generate(p) {
       });
     } else {
       inputs = tokenizer(prompt);
+    }
+    const maxInput = Math.max(128, Math.round(p.maxInputTokens || 16384));
+    const fullLen = inputs.input_ids.dims.at(-1);
+    if (fullLen > maxInput) {
+      const start = fullLen - maxInput;
+      for (const key of Object.keys(inputs)) {
+        const tensor = inputs[key];
+        if (tensor?.dims && tensor.dims.at(-1) === fullLen && typeof tensor.slice === "function") {
+          inputs[key] = tensor.slice(null, [start, null]);
+        }
+      }
+      post({ type: "status", text: `Промпт длиннее ${maxInput} токенов — оставлено окончание.` });
     }
     const promptLen = inputs.input_ids.dims.at(-1);
 

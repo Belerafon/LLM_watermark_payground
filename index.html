@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=31" />
+  <link rel="stylesheet" href="style.css?v=32" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -45,8 +45,8 @@
           <div>
             <h4>Как запустить</h4>
             <ol>
-              <li>Выберите модель и нажмите «Скачать и загрузить». После сохранения файлов модель автоматически загрузится в память.</li>
-              <li>Если модель уже в кэше, нажмите «Загрузить из кэша», чтобы запустить её без повторного скачивания.</li>
+              <li>Выберите модель и нажмите «Скачать выбранную модель и запустить». После сохранения файлов модель автоматически загрузится в память.</li>
+              <li>Если модель уже в кэше, нажмите «Загрузить» рядом с её названием, чтобы запустить её без повторного скачивания.</li>
               <li>При следующем посещении скачивать повторно не нужно. Удалите модель из списка кэша, чтобы освободить место на диске.</li>
             </ol>
             <p class="model-guide-note">Размер — это объём файлов на диске; для работы требуется дополнительная память. У моделей с пометкой WebGPU нужна совместимая видеокарта.</p>
@@ -71,11 +71,11 @@
           <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B — ~4,9 ГБ (Q4F16, WebGPU)</option>
         </select>
         <div class="model-actions">
-          <button type="button" id="load-cached-model" class="btn primary">Загрузить из кэша</button>
-          <button type="button" id="download-model" class="btn secondary">Скачать и загрузить</button>
+          <button type="button" id="download-model" class="btn primary">Скачать выбранную модель и запустить</button>
         </div>
         <section class="cached-models" aria-labelledby="cached-models-title">
           <h3 id="cached-models-title">Модели в кэше этого браузера</h3>
+          <p class="cached-models-note">Уже скачаны на диск. Загрузите нужную модель в память или удалите её файлы.</p>
           <div id="cached-model-list" class="cached-model-list" aria-live="polite">Проверяю кэш…</div>
         </section>
         <div id="active-model" class="active-model">Модель не загружена</div>
@@ -115,7 +115,7 @@
             <input type="number" id="maxTokens" min="1" max="8192" step="1" value="4096" />
           </div>
           <div class="param" data-param="maxInput">
-            <label for="maxInput">Лимит запроса <span class="tip" tabindex="0" data-tip="Сколько токенов входного текста поместится в запрос к модели.">?</span></label>
+            <label for="maxInput">Лимит запроса <span class="tip" tabindex="0" data-tip="Верхний предел токенов входного запроса. Реальный предел также зависит от модели и доступной памяти.">?</span></label>
             <input type="number" id="maxInput" min="128" max="32768" step="1" value="16384" />
           </div>
           <div class="param" data-param="temperature">
@@ -123,15 +123,15 @@
             <input type="number" id="temperature" min="0" max="2" step="0.1" value="1.0" />
           </div>
           <div class="param" data-param="topK">
-            <label for="topK">top-k <span class="tip" tabindex="0" data-tip="Ограничивает число вариантов продолжения.">?</span></label>
-            <input type="number" id="topK" min="0" max="1000" step="1" value="200" />
+            <label for="topK">top-k <span class="tip" tabindex="0" data-tip="Оставляет k наиболее вероятных вариантов следующего токена. 50 — обычное начальное значение; 0 отключает ограничение.">?</span></label>
+            <input type="number" id="topK" min="0" max="1000" step="1" value="50" />
           </div>
           <div class="param" data-param="topP">
             <label for="topP">top-p <span class="tip" tabindex="0" data-tip="Оставляет наиболее вероятные варианты до заданной доли.">?</span></label>
             <input type="number" id="topP" min="0.05" max="1" step="0.05" value="1" />
           </div>
           <div class="param" data-param="seed">
-            <label for="seed">Сид <span class="tip" tabindex="0" data-tip="Начальное число для случайного выбора. Закреплено на 42.">?</span></label>
+            <label for="seed">Сид <span class="tip" tabindex="0" data-tip="Начальное число случайного выбора. Закреплено на 42, чтобы можно было сравнивать режимы при одинаковых настройках.">?</span></label>
             <input type="text" id="seed" value="42" readonly />
           </div>
         </div>
@@ -145,19 +145,19 @@
             <input type="number" id="gamma" min="0.05" max="0.95" step="0.05" value="0.5" />
           </div>
           <div class="param" data-param="delta">
-            <label for="delta">Сила метки δ <span class="tip" tabindex="0" data-tip="Сила преимущества зелёных в мягком режиме.">?</span></label>
-            <input type="number" id="delta" min="0" max="15" step="0.5" value="4.0" />
+            <label for="delta">Сила метки δ <span class="tip" tabindex="0" data-tip="Добавка к оценке зелёных вариантов в мягком режиме. 2 — умеренное начальное значение; большая сила облегчает обнаружение, но может ухудшить текст.">?</span></label>
+            <input type="number" id="delta" min="0" max="15" step="0.5" value="2.0" />
           </div>
           <div class="param" data-param="layers">
-            <label for="layers">Раунды турнира m <span class="tip" tabindex="0" data-tip="Число раундов турнирного семплирования.">?</span></label>
-            <input type="number" id="layers" min="1" max="30" step="1" value="15" />
+            <label for="layers">Раунды турнира m <span class="tip" tabindex="0" data-tip="Число раундов отбора. В эталонной конфигурации SynthID Text — 30. Меньшее число ослабляет метку и ускоряет генерацию в браузере.">?</span></label>
+            <input type="number" id="layers" min="1" max="30" step="1" value="30" />
           </div>
           <div class="param" data-param="ctxWidth">
-            <label for="ctxWidth">Контекст метки h <span class="tip" tabindex="0" data-tip="Сколько предыдущих токенов участвует в расчёте метки.">?</span></label>
-            <input type="number" id="ctxWidth" min="1" max="8" step="1" value="1" />
+            <label for="ctxWidth">Контекст метки h <span class="tip" tabindex="0" data-tip="Сколько предыдущих токенов задают правило метки для следующего токена. По умолчанию 4 — как в эталонной настройке SynthID Text. При h=1 используется только последний токен: это допустимо, но правило чаще повторяется. Больший h делает метку чувствительнее к правкам текста.">?</span></label>
+            <input type="number" id="ctxWidth" min="1" max="8" step="1" value="4" />
           </div>
           <div class="param" data-param="wmKey">
-            <label for="wmKey">ключ <span class="tip" tabindex="0" data-tip="Строка, задающая правило водяного знака.">?</span></label>
+            <label for="wmKey">Ключ <span class="tip" tabindex="0" data-tip="Строка, задающая правило метки. Для проверки нужен тот же ключ. Предложенное значение публичное и годится только для демонстрации.">?</span></label>
             <input type="text" id="wmKey" value="ai_wrote_this" spellcheck="false" />
           </div>
         </div>
@@ -254,6 +254,6 @@
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=76"></script>
+  <script type="module" src="main.js?v=81"></script>
 </body>
 </html>

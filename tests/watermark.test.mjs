@@ -184,6 +184,28 @@ test("forced-red candidates can survive a tied tournament", () => {
   assert.equal(tournamentSample([1], 123, 15, new Set([0]), seededRng(42)), 0);
 });
 
+test("sparse 30-round tournament matches a full-vocabulary calculation", () => {
+  const probs = Array(128).fill(0);
+  for (const [token, weight] of [[2, 0.4], [17, 0.3], [64, 0.2], [115, 0.1]]) probs[token] = weight;
+  const dense = (seed, rng) => {
+    const q = Float64Array.from(probs);
+    for (let layer = 0; layer < 30; layer++) {
+      let p0 = 0;
+      for (let t = 0; t < q.length; t++) if (q[t] > 0 && !gValue(seed, layer, t)) p0 += q[t];
+      let sum = 0;
+      for (let t = 0; t < q.length; t++) if (q[t] > 0) {
+        q[t] *= gValue(seed, layer, t) + p0;
+        sum += q[t];
+      }
+      for (let t = 0; t < q.length; t++) q[t] /= sum;
+    }
+    return sampleMultinomial(q, 1, rng)[0];
+  };
+  for (let seed = 0; seed < 20; seed++) {
+    assert.equal(tournamentSample(probs, seed, 30, null, seededRng(seed + 100)), dense(seed, seededRng(seed + 100)));
+  }
+});
+
 function generateFixture(mode) {
   const weights = Array.from({ length: 128 }, (_, i) => Math.exp(-i / 20));
   const sum = weights.reduce((a, b) => a + b);

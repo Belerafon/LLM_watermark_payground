@@ -25,7 +25,6 @@ const $ = (id) => document.getElementById(id);
 
 const els = {
   model: $("model"),
-  loadCachedModel: $("load-cached-model"),
   downloadModel: $("download-model"),
   cachedModelList: $("cached-model-list"),
   activeModel: $("active-model"),
@@ -122,10 +121,10 @@ function spawnWorker(meta) {
   const id = ++attemptSeq;
   const runtime = modelInfo(meta.modelId).runtime;
   const script = runtime === "v4"
-    ? "worker-v4.js?v=18"
+    ? "worker-v4.js?v=22"
     : runtime === "v4next"
-      ? "worker-next.js?v=4"
-      : "worker.js?v=17";
+      ? "worker-next.js?v=8"
+      : "worker.js?v=21";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
@@ -196,13 +195,13 @@ function readParams() {
     maxNewTokens: Math.round(clamp(els.maxTokens.value, 1, 8192, 4096)),
     maxInputTokens: Math.round(clamp(els.maxInput.value, 128, 32768, 16384)),
     temperature: clamp(els.temperature.value, 0, 2, 1),
-    topK: Math.round(clamp(els.topK.value, 0, 1000, 200)),
-    topP: clamp(els.topP.value, 0.05, 1, 0.9),
+    topK: Math.round(clamp(els.topK.value, 0, 1000, 50)),
+    topP: clamp(els.topP.value, 0.05, 1, 1),
     seed: 42,
     gamma: clamp(els.gamma.value, 0.05, 0.95, 0.5),
-    delta: clamp(els.delta.value, 0, 15, 4),
-    h: Math.round(clamp(els.ctxWidth.value, 1, 8, 1)),
-    m: Math.round(clamp(els.layers.value, 1, 30, 15)),
+    delta: clamp(els.delta.value, 0, 15, 2),
+    h: Math.round(clamp(els.ctxWidth.value, 1, 8, 4)),
+    m: Math.round(clamp(els.layers.value, 1, 30, 30)),
     key: els.wmKey.value,
     redWords: els.redWords.value,
   };
@@ -238,8 +237,10 @@ function updateButtons() {
   els.detectBtn.disabled = generating || modelLoading || downloadingModel || !modelReady || (!haveGeneration && !hasPaste);
   els.stopBtn.hidden = !generating;
   els.model.disabled = generating || modelLoading || downloadingModel;
-  els.loadCachedModel.disabled = generating || modelLoading || downloadingModel || !cachedModels.has(els.model.value);
   els.downloadModel.disabled = generating || modelLoading || downloadingModel;
+  for (const button of els.cachedModelList.querySelectorAll("button")) {
+    button.disabled = generating || modelLoading || downloadingModel;
+  }
 }
 
 /** Rewrite the dropdown labels with the sizes for the active backend/dtype. */
@@ -400,28 +401,55 @@ async function downloadSelectedModel() {
 }
 
 function renderCachedModels() {
+  for (const option of [...els.model.options]) {
+    if (option.dataset.cachedOnly && !cachedModels.has(option.value)) option.remove();
+  }
   els.cachedModelList.replaceChildren();
   if (!cachedModels.size) {
-    els.cachedModelList.textContent = "Скачанных моделей пока нет.";
+    els.cachedModelList.textContent = "Скачанных моделей пока нет. Выберите модель выше и нажмите «Скачать выбранную модель и запустить».";
     return;
   }
   for (const entry of MODELS) {
     const cached = cachedModels.get(entry.id);
     if (!cached) continue;
+    if (![...els.model.options].some((option) => option.value === entry.id)) {
+      const option = new Option(entry.name, entry.id);
+      option.dataset.cachedOnly = "true";
+      els.model.add(option);
+    }
     const row = document.createElement("div");
     row.className = "cached-model-row";
     const label = document.createElement("span");
     const variant = cached.variants.length ? cached.variants.join(", ").toUpperCase() : "ONNX";
     const size = cached.size ? ` · ~${(cached.size / 1000).toFixed(1).replace(".", ",")} ГБ` : "";
     label.textContent = `${entry.name} (${variant}${size})`;
+    const actions = document.createElement("div");
+    actions.className = "cached-model-actions";
+    const load = document.createElement("button");
+    load.type = "button";
+    load.className = "btn primary small";
+    load.textContent = "Загрузить";
+    load.setAttribute("aria-label", `Загрузить ${entry.name} из кэша`);
+    load.addEventListener("click", () => {
+      if (generating || modelLoading || downloadingModel) return;
+      if (els.model.value !== entry.id) {
+        els.model.value = entry.id;
+        els.model.dispatchEvent(new Event("change"));
+      }
+      crashReloads = 0;
+      startLoad({ modelId: entry.id, device: forcedDevice, dtype: forcedDtype, cacheOnly: true });
+    });
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "btn secondary small";
-    remove.textContent = "Удалить";
+    remove.textContent = "Удалить из кэша";
+    remove.setAttribute("aria-label", `Удалить ${entry.name} из кэша`);
     remove.addEventListener("click", () => deleteCachedModel(entry));
-    row.append(label, remove);
+    actions.append(load, remove);
+    row.append(label, actions);
     els.cachedModelList.append(row);
   }
+  updateButtons();
 }
 
 async function deleteCachedModel(entry) {
@@ -763,7 +791,7 @@ function describeFailure(f, report) {
         " Эта модель и так самая большая, которую сюда можно поставить."
       );
     case "network":
-      if (f.cacheOnly) return `В кэше не хватает файлов ${name}. Нажмите «Скачать и загрузить»: недостающие файлы скачаются, затем модель загрузится в память.`;
+      if (f.cacheOnly) return `В кэше не хватает файлов ${name}. Выберите её выше и нажмите «Скачать выбранную модель и запустить»: недостающие файлы скачаются, затем модель загрузится в память.`;
       return `Не удалось загрузить ${name} на этапе «${where}»: ${shorten(f.raw)}. Это офлайн-копия: веса должны быть в models/, рантайм в vendor4/.`;
     case "unsupported":
       return f.raw;
@@ -1271,11 +1299,6 @@ els.generateBtn.addEventListener("click", () => {
 
 els.stopBtn.addEventListener("click", () => send({ type: "interrupt" }));
 
-els.loadCachedModel.addEventListener("click", () => {
-  crashReloads = 0;
-  startLoad({ modelId: els.model.value, device: forcedDevice, dtype: forcedDtype, cacheOnly: true });
-});
-
 els.downloadModel.addEventListener("click", downloadSelectedModel);
 
 function detectParams() {
@@ -1415,7 +1438,7 @@ els.model.addEventListener("change", () => {
   updateButtons();
   showNote("");
   hideDiagnostics();
-  setStatus(`Выбрана ${modelInfo(modelId).name}. Скачайте её или загрузите из кэша.`);
+  setStatus(`Выбрана ${modelInfo(modelId).name}. Для новой модели нажмите «Скачать выбранную модель и запустить»; для скачанной — «Загрузить» в списке кэша.`);
   if (WEBGPU_ONLY.has(modelId) && forcedDevice !== "webgpu" && lastBackend && lastBackend.device !== "webgpu") {
     setStatus(`${modelInfo(modelId).name} нужна WebGPU, а в этом браузере её нет (сейчас WASM). Возьмите Chrome или Edge.`, "error");
   }
@@ -1527,7 +1550,7 @@ window.addEventListener("resize", hideHint);
 syncParamVisibility();
 refreshModelOptions(lastBackend);
 updateButtons();
-setStatus("Выберите модель: нажмите «Скачать и загрузить» или загрузите уже скачанную из кэша.");
+setStatus("Выберите модель для скачивания или нажмите «Загрузить» рядом с уже скачанной моделью.");
 refreshCachedModels();
 
 /* ── page version: last commit hash + date in the header ── */

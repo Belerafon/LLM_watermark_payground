@@ -278,10 +278,15 @@ h1.hover-tip { display: inline-block; }
 .model-actions .btn { flex: 1; padding: 9px 10px; }
 .cached-models { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 .cached-models h3 { margin: 0 0 7px; font-size: 13px; font-weight: 600; }
+.cached-models-note { margin: 0 0 9px; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 .cached-model-list { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
-.cached-model-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.cached-model-row > span { overflow-wrap: anywhere; }
-.cached-model-row .btn { flex: none; }
+.cached-model-row { display: flex; align-items: flex-start; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.cached-model-row > span { overflow-wrap: anywhere; color: var(--text); font-weight: 500; }
+.cached-model-actions { display: flex; flex: none; flex-wrap: wrap; gap: 6px; }
+.cached-model-actions .btn { flex: none; }
+@media (max-width: 480px) {
+  .cached-model-actions .btn { flex: 1; }
+}
 .backend-badge {
   font-family: var(--font-mono); font-size: 11px; font-weight: 500;
   border: 1px solid var(--green-border); color: var(--green); background: var(--green-bg);

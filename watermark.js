@@ -197,19 +197,22 @@ export function sampleMultinomial(probs, n, rng = Math.random) {
 export function tournamentSample(probs, seed, m, forcedRed = null, rng = Math.random) {
   const V = probs.length;
   const q = Float64Array.from(probs);
+  // Truncation often leaves only top-k tokens; zero-probability tokens can never re-enter.
+  const active = [];
+  for (let t = 0; t < V; t++) if (q[t] > 0) active.push(t);
   for (let layer = 0; layer < m; layer++) {
     let p0 = 0;
-    for (let t = 0; t < V; t++) {
+    for (const t of active) {
       if (q[t] > 0 && !gValue(seed, layer, t, forcedRed)) p0 += q[t];
     }
     let sum = 0;
-    for (let t = 0; t < V; t++) {
+    for (const t of active) {
       if (q[t] > 0) {
         q[t] *= gValue(seed, layer, t, forcedRed) + p0;
         sum += q[t];
       }
     }
-    for (let t = 0; t < V; t++) q[t] /= sum; // guard float drift
+    for (const t of active) q[t] /= sum; // guard float drift
   }
   return sampleMultinomial(q, 1, rng)[0];
 }
