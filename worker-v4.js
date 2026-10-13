@@ -9,7 +9,7 @@ LogitsProcessorList,
 InterruptableStoppingCriteria,
 env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=11";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=12";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=7";
 env.allowLocalModels = true;
 env.allowRemoteModels = true;
@@ -516,33 +516,46 @@ if (!tokenizer) {
  post({ type: "error", phase: "detect", kind: "other", raw: "Модель не загружена.", modelId, device, dtype, log: log.entries() });
  return;
 }
-const trimmed = String(text ?? "").trim();
-if (!trimmed) {
+// Keep the text byte-exact (no trim): leading indentation and whitespace
+// runs change code tokens, especially in Python.
+const raw = String(text ?? "");
+if (!raw.trim()) {
  post({ type: "error", phase: "detect", kind: "other", raw: "Вставьте текст.", modelId, device, dtype, log: log.entries() });
  return;
 }
 setPhase("detect");
 try {
- let ids = encodeIds(trimmed);
- const cap = 2000;
+ let ids = encodeIds(raw);
+ const DETECT_CAP = 200000; // sanity bound only; whole files fit far below
+ const CHIPS_CAP = 2000; // chip rendering cap, not a detection cap
  let note = "";
  if (!ids.length) {
  post({ type: "error", phase: "detect", kind: "other", raw: "Нет токенов.", modelId, device, dtype, log: log.entries() });
  setPhase("ready");
  return;
  }
- if (ids.length > cap) {
- ids = ids.slice(0, cap);
- note = ` Проверены первые ${cap} токенов.`;
+ if (ids.length > DETECT_CAP) {
+ ids = ids.slice(0, DETECT_CAP);
+ note += ` Проверены первые ${DETECT_CAP} токенов.`;
+ }
+ // Round-trip diagnostic: decoding the re-tokenised ids must reproduce the
+ // pasted text exactly; otherwise whitespace-sensitive code is being checked
+ // against a different token sequence than the author's text.
+ const roundTrip = tokenizer.decode(ids, { skip_special_tokens: false });
+ if (roundTrip !== raw) {
+ let at = 0;
+ while (at < roundTrip.length && at < raw.length && roundTrip[at] === raw[at]) at++;
+ note += ` Повторная токенизация меняет текст (первое расхождение около символа ${at + 1}): отступы или пробелы могли измениться, и результат может отличаться от проверки исходного текста.`;
+ log.push("warn", { phase: "detect", roundTripDiffAt: at + 1 });
  }
  const h = Math.max(1, Math.round(p.h || 1));
  const promptLen = Math.min(h, Math.max(0, ids.length - 1));
  lastGen = { ids, promptLen };
  runDetect(p, {
- tokens: tokenChips(ids),
+ tokens: tokenChips(ids.slice(0, CHIPS_CAP)),
  colorFrom: promptLen,
  pasted: true,
- note,
+ note: note + (ids.length > CHIPS_CAP ? ` Показаны первые ${CHIPS_CAP} токенов из ${ids.length}; проверены все.` : ""),
  });
 } catch (err) {
  fail("detect", err);

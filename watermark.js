@@ -298,6 +298,43 @@ export function expectedMeanGValue(vocabSize) {
 }
 
 /**
+ * Standardised z-test for the Weighted Mean score under the no-watermark
+ * null. With weights normalised so Σⱼ wⱼ = depth, the weighted sum
+ * S = Σᵢ Σⱼ wⱼ·gᵢⱼ over unmasked tokens has
+ *   E[S] = depth·T/2  and  Var[S] = T·Σⱼ wⱼ²/4
+ * (every g-value is an independent Bernoulli(1/2) hash bit), hence
+ *   z = (S − depth·T/2) / (½·√(T·Σⱼ wⱼ²)).
+ * Uniform weights reduce this to the plain mean z-test. The standardisation
+ * is ours — the official repo thresholds the scores and ships no z — but it
+ * uses exactly the Weighted Mean weights, so the verdict is driven by the
+ * same quantity the UI shows.
+ *
+ * @param {number[][]} gValues matrix [T][m]
+ * @param {ArrayLike<number>} mask [T], 1 = use this token's g-values
+ * @param {number[]|null} weights optional per-layer weights (default 10→1)
+ * @returns {number}
+ */
+export function weightedZScore(gValues, mask, weights = null) {
+  const depth = gValues.length ? gValues[0].length : 0;
+  if (depth <= 0) return 0;
+  const w = weights ?? layerWeights(depth);
+  const scale = depth / w.reduce((a, b) => a + b, 0); // normalise: Σw = depth
+  let sumW2 = 0;
+  for (let j = 0; j < depth; j++) sumW2 += (w[j] * scale) ** 2;
+  let unmasked = 0;
+  let sum = 0;
+  for (let i = 0; i < gValues.length; i++) {
+    if (!mask[i]) continue;
+    unmasked++;
+    const row = gValues[i];
+    for (let j = 0; j < depth; j++) sum += w[j] * scale * row[j];
+  }
+  if (unmasked <= 0) return 0;
+  const variance = (unmasked * sumW2) / 4;
+  return variance > 0 ? (sum - (depth * unmasked) / 2) / Math.sqrt(variance) : 0;
+}
+
+/**
  * UI reference mean g for a tournament with a fixed artificial distribution.
  * This is neither a ceiling nor a calibration for the loaded language model.
  *
@@ -374,7 +411,6 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
   const perTokenScore = [];
   const seenContext = new Set();
   let T = 0;
-  let sumG = 0;
   for (let i = startIndex; i < ids.length; i++) {
     const ctx = ids.slice(Math.max(0, i - h), i);
     const seed = seedFromContext(ctx, keySeed);
@@ -395,14 +431,16 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
     if (!repeated) {
       seenContext.add(contextKey);
       T++;
-      sumG += s;
     }
   }
   const meanG = meanScore(gValues, mask);
   const weightedMeanG = weightedMeanScore(gValues, mask);
-  const N = T * m;
-  const z = N > 0 ? (sumG - N / 2) / Math.sqrt(N / 4) : 0;
-  const pValue = N > 0 ? 1 - normalCdf(z) : 1;
+  // The verdict statistic is the same weighted sum the UI shows: early
+  // tournament rounds carry more signal, so weighting them (10 → 1) makes
+  // detection stronger than the plain-mean test. Under the Bernoulli(1/2)
+  // null the weighted sum is standardised by weightedZScore to mean 0 / sd 1.
+  const z = weightedZScore(gValues, mask);
+  const pValue = T > 0 ? 1 - normalCdf(z) : 1;
   const flags = perTokenScore.map((s) => s >= 0.5);
   const officialVocab = Number.isFinite(vocabSize) && vocabSize > 0;
   const expectedG = officialVocab ? expectedMeanGValue(vocabSize) : expectedTournamentMean(m);
