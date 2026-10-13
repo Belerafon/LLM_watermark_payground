@@ -1,6 +1,7 @@
 # Deploys the playground to GitHub Pages on every push to main.
 # Runs the test suite, stamps version.json with the exact deployed commit
-# (shown in the page header), and publishes the site.
+# (shown in the page header), rewrites every manual ?v= cache buster in the
+# app files to that commit's short sha, and publishes the site.
 #
 # One-time setup: repo Settings → Pages → Source: "GitHub Actions".
 
@@ -43,6 +44,19 @@ jobs:
           time="$(git log -1 --format=%cI)"
           printf '{"sha":"%s","commit":"%s","time":"%s"}\n' "$sha" "$short" "$time" > version.json
           echo "Page version: $short ($time)"
+
+      # GitHub Pages serves assets with Cache-Control: max-age=600, so a
+      # stale main.js can outlive the HTML that references it. Rewrite every
+      # manual ?v= buster in the app entry points to the deployed sha: each
+      # deploy changes all asset URLs in lockstep, forcing browsers to
+      # refetch the whole graph (and keeping page/worker imports identical).
+      - name: Cache-bust versioned assets with the commit sha
+        run: |
+          sha="$(git rev-parse --short=7 HEAD)"
+          sed -i -E "s/([?&]v=)[A-Za-z0-9._-]+/\1${sha}/g" \
+            index.html main.js worker.js worker-next.js worker-v4.js
+          echo "Stamped ?v=$sha:"
+          grep -RnoE "[?&]v=[A-Za-z0-9._-]+" index.html main.js worker*.js || true
 
       - name: Remove repository metadata from the site
         run: rm -rf .git
