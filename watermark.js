@@ -409,6 +409,11 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
   const gValues = [];
   const mask = [];
   const perTokenScore = [];
+  const perTokenWeighted = [];
+  // Same layer weights as weighted_mean_score, normalised to sum to m.
+  const rawW = layerWeights(m);
+  const wSum = rawW.reduce((a, b) => a + b, 0);
+  const w = rawW.map((x) => (x * m) / wSum);
   const seenContext = new Set();
   let T = 0;
   for (let i = startIndex; i < ids.length; i++) {
@@ -416,13 +421,16 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
     const seed = seedFromContext(ctx, keySeed);
     const row = new Array(m);
     let s = 0;
+    let sw = 0;
     for (let layer = 0; layer < m; layer++) {
       const g = gValue(seed, layer, ids[i], forcedRed);
       row[layer] = g;
       s += g;
+      sw += w[layer] * g;
     }
     gValues.push(row);
     perTokenScore.push(s / m);
+    perTokenWeighted.push(sw / m);
     // Official compute_context_repetition_mask: only the first occurrence of
     // a context counts; a repeated (n−1)-gram is masked whatever token follows.
     const contextKey = ctx.join(",");
@@ -447,6 +455,7 @@ export function detectTournament(ids, startIndex, { m, h, forcedRed = null, keyS
   return {
     flags,
     perTokenScore,
+    perTokenWeighted,
     gValues,
     mask,
     meanG,

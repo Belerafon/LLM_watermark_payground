@@ -9,7 +9,7 @@ LogitsProcessorList,
 InterruptableStoppingCriteria,
 env,
 } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js";
-import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=12";
+import { seedFromContext, isGreen, detect, keyToSeed, tournamentSample, detectTournament, sampleMultinomial, seededRng } from "./watermark.js?v=13";
 import { APP_VERSION, WEBGPU_ONLY, modelInfo, dtypeFor, sizeMB, formatMB, classifyError, describeAdapter, createLog } from "./models.js?v=7";
 env.allowLocalModels = true;
 env.allowRemoteModels = true;
@@ -483,6 +483,8 @@ if (scheme === "tournament") {
  scheme: "tournament",
  flags: r.flags,
  perTokenScore: r.perTokenScore,
+        perTokenWeighted: r.perTokenWeighted,
+        mask: r.mask,
  meanG: r.meanG,
  weightedMeanG: r.weightedMeanG,
  expectedG: r.expectedG,
@@ -583,6 +585,8 @@ try {
   scheme: "tournament",
   flags: r.flags,
   perTokenScore: r.perTokenScore,
+        perTokenWeighted: r.perTokenWeighted,
+        mask: r.mask,
   meanG: r.meanG,
   weightedMeanG: r.weightedMeanG,
   expectedG: r.expectedG,

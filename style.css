@@ -350,6 +350,29 @@ h1.hover-tip { display: inline-block; }
 .icon-btn.copied .ico-copy { display: none; }
 .icon-btn.copied .ico-check { display: block; }
 
+/* Local watermark strength chart under the stats table. */
+.strength-chart { margin-top: 10px; }
+.strength-chart svg { display: block; width: 100%; height: auto; }
+.strength-chart .sc-band { fill: var(--surface-2); }
+.strength-chart .sc-null {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.65;
+}
+.strength-chart .sc-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.strength-chart .sc-guide { stroke: var(--text-muted); stroke-width: 1; opacity: 0.7; }
+.strength-chart .sc-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-body);
+}
+
 .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--text-muted); min-width: 196px; justify-content: flex-end; }
 .legend.is-off { visibility: hidden; }
 .legend-item { display: inline-flex; align-items: center; gap: 5px; }

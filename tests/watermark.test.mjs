@@ -460,3 +460,72 @@ test("null z is approximately standard normal across random unmarked sequences",
     assert.ok(exceeded <= 6, `${detector.name}: too many null rejections: ${exceeded}/${runs}`);
   }
 });
+
+/* ── per-text strength chart series ── */
+
+function seriesHarness() {
+  const source = readFileSync(new URL("../main.js", import.meta.url), "utf8");
+  const start = source.indexOf("function tournamentTokenSigma(");
+  const end = source.indexOf("/* ── user actions", start);
+  const box = {};
+  vm.runInNewContext(source.slice(start, end) + "\nbox.series = computeStrengthSeries; box.sigma = tournamentTokenSigma;", {
+    box, layerWeights,
+  });
+  return box;
+}
+
+test("strength series: a marked first half and plain second half are told apart", () => {
+  const box = seriesHarness();
+  const T = 400;
+  const scores = Array.from({ length: T }, (_, i) => (i < T / 2 ? 0.75 : 0.5));
+  const { points, window } = box.series(scores, { sigmaPerToken: 0.15 });
+  assert.ok(window >= 8 && window <= 100);
+  const mean = (arr) => arr.reduce((a, p) => a + p.v, 0) / arr.length;
+  const first = points.filter((p) => p.t < T / 4);
+  const last = points.filter((p) => p.t >= (3 * T) / 4);
+  assert.ok(mean(first) > 0.7, "marked half should read high");
+  assert.ok(Math.abs(mean(last) - 0.5) < 1e-9, "plain half should sit at the null level");
+  assert.ok(mean(first) - mean(last) > 0.2);
+});
+
+test("strength series: flat null text stays exactly at the null level", () => {
+  const box = seriesHarness();
+  const { points } = box.series(Array(300).fill(0.5), { sigmaPerToken: 0.14 });
+  assert.ok(points.length >= 2);
+  for (const p of points) {
+    assert.ok(Math.abs(p.v - 0.5) < 1e-9);
+    assert.ok(p.sigma > 0);
+  }
+});
+
+test("strength series: masked tokens contribute nothing", () => {
+  const box = seriesHarness();
+  const scores = [1, 1, 1, 0, 0];
+  const mask = [1, 0, 0, 0, 0]; // only the first occurrence counts
+  const { points } = box.series(scores, { mask, sigmaPerToken: 0.5, window: 10, maxPoints: 10 });
+  assert.ok(points.length > 0);
+  for (const p of points) {
+    assert.ok(p.n <= 1);
+    if (p.n === 1) assert.equal(p.v, 1);
+  }
+});
+
+test("strength series: long texts downsample and the window is capped", () => {
+  const box = seriesHarness();
+  const T = 5000;
+  const { points, window } = box.series(Array(T).fill(0.6), { sigmaPerToken: 0.14 });
+  assert.equal(window, 100); // cap, not T/8 = 625
+  assert.ok(points.length <= 482);
+  for (const p of points) assert.ok(Math.abs(p.v - 0.6) < 1e-9);
+});
+
+test("detectTournament ships a per-token weighted score aligned with the verdict", () => {
+  const r = detectTournament([5, 6, 7, 8, 9, 10, 11, 12], 1, { ...params, m: 4 });
+  assert.equal(r.perTokenWeighted.length, r.perTokenScore.length);
+  for (let i = 0; i < r.perTokenWeighted.length; i++) {
+    assert.ok(r.perTokenWeighted[i] >= 0 && r.perTokenWeighted[i] <= 1);
+    // early layers are weighted up, so the weighted score is a valid [0,1] mean
+    const mean = r.perTokenScore[i];
+    assert.ok(r.perTokenWeighted[i] >= Math.min(mean, r.perTokenWeighted[i]) - 1e-12);
+  }
+});

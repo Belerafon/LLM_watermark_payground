@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=30" />
+  <link rel="stylesheet" href="style.css?v=31" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -247,12 +247,13 @@
           <div class="hover-tip" id="tip-z" tabindex="0"><dt>z-оценка</dt><dd id="stat-z"></dd></div>
           <div class="hover-tip" id="tip-p" tabindex="0"><dt>p-значение</dt><dd id="stat-p"></dd></div>
         </dl>
+        <div class="strength-chart hover-tip" id="strength-chart" tabindex="0" hidden></div>
         <p class="hint hover-tip" id="verdict-note" tabindex="0"></p>
       </div>
     </section>
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=75"></script>
+  <script type="module" src="main.js?v=76"></script>
 </body>
 </html>

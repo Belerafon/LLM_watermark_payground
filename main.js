@@ -19,7 +19,7 @@ import {
   probeWasmHeapMB,
   createLog,
 } from "./models.js?v=7";
-import { expectedTournamentMean } from "./watermark.js?v=12";
+import { expectedTournamentMean, layerWeights } from "./watermark.js?v=13";
 
 const $ = (id) => document.getElementById(id);
 
@@ -77,6 +77,7 @@ const els = {
   statZ: $("stat-z"),
   statP: $("stat-p"),
   verdictNote: $("verdict-note"),
+  strengthChart: $("strength-chart"),
   copyOutput: $("copy-output"),
   copyVerdict: $("copy-verdict"),
 };
@@ -1087,6 +1088,163 @@ function fmtP(p) {
   return p.toFixed(3);
 }
 
+/* ── per-text strength chart: local watermark strength along the text ── */
+
+/** Null-model sd of one token's weighted score (tournament). */
+function tournamentTokenSigma(m) {
+  const raw = layerWeights(m);
+  const sum = raw.reduce((a, b) => a + b, 0);
+  let s2 = 0;
+  for (const x of raw) {
+    const wn = (x * m) / sum; // normalised like weighted_mean_score
+    s2 += wn * wn;
+  }
+  return (0.5 * Math.sqrt(s2)) / m;
+}
+
+/**
+ * Rolling local strength of the mark along the text. For every sampled
+ * position the mean of the per-token scores over a window of ±window/2
+ * tokens is computed (masked-out tokens are skipped, so repeated contexts
+ * contribute nothing). Each point carries the null-model sigma of its mean
+ * so the chart can shade the ±2σ "ordinary noise" band.
+ *
+ * @param {number[]} scores per-token scores in [0, 1] (weighted g for the
+ *   tournament, 0/1 green flags for the green list)
+ * @param {{mask?: ArrayLike<number>|null, sigmaPerToken?: number, window?: number|null, maxPoints?: number}} opts
+ * @returns {{window: number, points: Array<{t: number, v: number, n: number, sigma: number}>}}
+ */
+function computeStrengthSeries(scores, { mask = null, sigmaPerToken = 0.5, window = null, maxPoints = 480 } = {}) {
+  const total = scores.length;
+  if (total < 2) return { window: 1, points: [] };
+  const W = Math.max(2, Math.min(window ?? Math.min(100, Math.max(8, Math.round(total / 8))), total));
+  const use = mask ?? scores.map(() => 1);
+  const pref = new Float64Array(total + 1);
+  const cnt = new Uint32Array(total + 1);
+  for (let i = 0; i < total; i++) {
+    pref[i + 1] = pref[i] + (use[i] ? scores[i] : 0);
+    cnt[i + 1] = cnt[i] + (use[i] ? 1 : 0);
+  }
+  const step = Math.max(1, Math.ceil(total / maxPoints));
+  const half = W / 2;
+  const points = [];
+  for (let i = 0; i < total; i += step) {
+    const lo = Math.max(0, Math.floor(i - half));
+    const hi = Math.min(total, Math.ceil(i + half));
+    const n = cnt[hi] - cnt[lo];
+    if (n <= 0) continue;
+    points.push({
+      t: i,
+      v: (pref[hi] - pref[lo]) / n,
+      n,
+      sigma: sigmaPerToken / Math.sqrt(n),
+    });
+  }
+  return { window: W, points };
+}
+
+/** Draws the strength chart into #strength-chart from a detection message. */
+function renderStrengthChart(msg) {
+  const host = els.strengthChart;
+  if (!host) return;
+  const tournament = msg.scheme === "tournament";
+  const scores = tournament
+    ? msg.perTokenWeighted
+    : (msg.flags ?? []).map((f) => +f);
+  const total = scores ? scores.length : 0;
+  if (total < 10) {
+    host.hidden = true;
+    host.replaceChildren();
+    return;
+  }
+  const mask = tournament ? msg.mask : null;
+  const sigmaPerToken = tournament
+    ? tournamentTokenSigma(msg.m || 1)
+    : Math.sqrt(Math.max(1e-9, (msg.gamma ?? 0.5) * (1 - (msg.gamma ?? 0.5))));
+  const { window: W, points } = computeStrengthSeries(scores, { mask, sigmaPerToken });
+  if (points.length < 2) {
+    host.hidden = true;
+    host.replaceChildren();
+    return;
+  }
+
+  const Wc = 640;
+  const Hc = 132;
+  const padL = 6;
+  const padR = 6;
+  const padT = 8;
+  const padB = 18;
+  const iw = Wc - padL - padR;
+  const ih = Hc - padT - padB;
+  const yLo = tournament ? 0.5 : (msg.gamma ?? 0.5); // no-mark level
+  let yMin = yLo;
+  let yMax = yLo;
+  for (const p of points) {
+    yMin = Math.min(yMin, p.v - 2 * p.sigma);
+    yMax = Math.max(yMax, p.v + 2 * p.sigma);
+  }
+  const span = Math.max(0.02, yMax - yMin);
+  yMin = Math.max(0, yMin - span * 0.1);
+  yMax = Math.min(1, yMax + span * 0.1);
+  const x = (t) => padL + (iw * t) / Math.max(1, total - 1);
+  const y = (v) => padT + ih * (1 - (v - yMin) / (yMax - yMin));
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${Wc} ${Hc}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Локальная сила метки по ходу текста");
+  const el = (name, attrs, text) => {
+    const node = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (text != null) node.textContent = text;
+    svg.appendChild(node);
+    return node;
+  };
+
+  // ±2σ "ordinary noise" band under the no-mark null.
+  let band = "";
+  for (const p of points) band += `${x(p.t).toFixed(1)},${y(Math.min(1, p.v + 2 * p.sigma)).toFixed(1)} `;
+  for (let i = points.length - 1; i >= 0; i--) {
+    const p = points[i];
+    band += `${x(p.t).toFixed(1)},${y(Math.max(0, p.v - 2 * p.sigma)).toFixed(1)} `;
+  }
+  el("polygon", { points: band.trim(), class: "sc-band" });
+  if (yMin < yLo && yMax > yLo) {
+    el("line", { x1: padL, x2: Wc - padR, y1: y(yLo).toFixed(1), y2: y(yLo).toFixed(1), class: "sc-null" });
+  }
+  el("polyline", {
+    points: points.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" "),
+    class: "sc-line",
+  });
+
+  const guide = el("line", { x1: 0, x2: 0, y1: padT, y2: Hc - padB, class: "sc-guide" });
+  const label = el("text", { x: padL + 2, y: Hc - 5, class: "sc-label" }, `скользящее окно ${W} токенов`);
+  const pick = (evt) => {
+    const rect = svg.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (evt.clientX - rect.left) / rect.width));
+    const t = frac * (total - 1);
+    let best = points[0];
+    for (const p of points) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+    guide.setAttribute("x1", x(best.t).toFixed(1));
+    guide.setAttribute("x2", x(best.t).toFixed(1));
+    label.textContent = `токен ${best.t + 1} из ${total} · среднее по окну ${(best.v * 100).toFixed(1)}%`;
+  };
+  const reset = () => {
+    guide.setAttribute("x1", "0");
+    guide.setAttribute("x2", "0");
+    label.textContent = `скользящее окно ${W} токенов`;
+  };
+  svg.addEventListener("mousemove", pick);
+  svg.addEventListener("mouseleave", reset);
+
+  host.replaceChildren(svg);
+  host.dataset.tip = tournament
+    ? `Локальная сила метки по ходу текста: среднее g-оценок (взвешенных, как в Weighted Mean) в скользящем окне ${W} токенов. Пунктир — уровень 50% без метки, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`
+    : `Локальная сила метки по ходу текста: доля зелёных токенов в скользящем окне ${W} токенов. Пунктир — ожидаемая без метки доля γ, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`;
+  host.hidden = false;
+}
+
 /* ── user actions ── */
 
 els.generateBtn.addEventListener("click", () => {
@@ -1153,6 +1311,7 @@ function paintDetection(msg) {
     : "Показывает, какие токены — слова или части слов — входят в зелёный и красный списки по ключу детектора. Зелёные получают преимущество при генерации с меткой. Отдельное зелёное слово встречается и без метки; важна общая доля. Выключение раскраски не меняет проверку.";
   setLegend(color);
   renderVerdict(msg);
+  renderStrengthChart(msg);
 }
 
 function renderTokenChips(tokens) {
