@@ -530,7 +530,7 @@ function syncDetectUi() {
   const tip =
     `Ищет водяной знак в поле «Текст» выбранным способом: «${name}». Можно проверять созданный ответ, его отредактированную версию или вставленный текст.\n\n` +
     "Ключ берётся из поля «Ключ детектора». Длина контекста, число раундов турнира, доля зелёных и красный список — из настроек слева; используйте значения, с которыми текст помечали.\n\n" +
-    "Для вставленного текста проверяются все токены (не более 200 000); подсвечиваются первые 2000. Начало используется как контекст. Результат относится к правилу этой программы: чужую метку с неизвестными настройками она не распознает.";
+    "Для вставленного текста проверяются и подсвечиваются все токены (не более 200 000). «Лимит ответа» ограничивает только генерацию. Начало используется как контекст. Результат относится к правилу этой программы: чужую метку с неизвестными настройками она не распознает.";
   if (els.detectTip) els.detectTip.dataset.tip = tip;
   if (els.detectModeHelp) els.detectModeHelp.dataset.tip = DETECT_HINT[mode] ?? "";
 }
@@ -1378,14 +1378,16 @@ function renderTokenChips(tokens, originalText = null) {
   els.tokens.textContent = "";
   if (els.copyOutput) els.copyOutput.disabled = tokens.length === 0;
   setLegend(false);
+  const fragment = document.createDocumentFragment();
   for (const tok of display.colouredTokens) {
     const span = document.createElement("span");
     span.className = "tok";
     span.textContent = tok.text;
     span.title = `Токен — фрагмент текста: слово, часть слова или знак препинания. Номер в словаре модели: ${tok.id}.`;
-    els.tokens.appendChild(span);
+    fragment.appendChild(span);
   }
-  if (display.remainder) els.tokens.appendChild(document.createTextNode(display.remainder));
+  if (display.remainder) fragment.appendChild(document.createTextNode(display.remainder));
+  els.tokens.appendChild(fragment);
 }
 
 els.colorText.addEventListener("change", () => {

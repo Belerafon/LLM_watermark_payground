@@ -1,4 +1,4 @@
-/** Keep the complete edited text when only a prefix of detector tokens is coloured. */
+/** Keep the exact edited text when decoded token text differs from the input. */
 export function displayParts(tokens, originalText) {
   const prefix = tokens.map((token) => token.text).join("");
   if (!originalText.startsWith(prefix)) {

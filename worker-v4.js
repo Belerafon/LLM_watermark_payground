@@ -529,7 +529,6 @@ setPhase("detect");
 try {
  let ids = encodeIds(raw);
  const DETECT_CAP = 200000; // sanity bound only; whole files fit far below
- const CHIPS_CAP = 2000; // chip rendering cap, not a detection cap
  let note = "";
  if (!ids.length) {
  post({ type: "error", phase: "detect", kind: "other", raw: "Нет токенов.", modelId, device, dtype, log: log.entries() });
@@ -555,10 +554,10 @@ try {
  lastGen = { ids, promptLen };
  runDetect(p, {
  requestId,
- tokens: tokenChips(ids.slice(0, CHIPS_CAP)),
+ tokens: tokenChips(ids),
  colorFrom: promptLen,
  pasted: true,
- note: note + (ids.length > CHIPS_CAP ? ` Показаны первые ${CHIPS_CAP} токенов из ${ids.length}; проверены все.` : ""),
+ note,
  });
 } catch (err) {
  fail("detect", err);

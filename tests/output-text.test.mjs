@@ -2,14 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { displayParts } from "../output-text.js";
 
-test("a detector chip cap never truncates the edited Arkanoid answer", () => {
+test("a long edited Arkanoid answer is coloured through its final token", () => {
   const edited = "def draw_objects():\n" + "    draw_brick()\n".repeat(140)
     + '    text = "ПОБЕДА! Нажмите R для перезапуска"\n'
     + "pygame.quit()\nsys.exit()";
-  const chips = [...edited.slice(0, 2000)].map((text) => ({ text }));
+  const chips = [...edited].map((text) => ({ text }));
   const parts = displayParts(chips, edited);
-  assert.equal(parts.colouredTokens.map((token) => token.text).join("") + parts.remainder, edited);
-  assert.match(parts.remainder, /sys\.exit\(\)$/);
+  assert.ok(parts.colouredTokens.length > 2000);
+  assert.equal(parts.colouredTokens.map((token) => token.text).join(""), edited);
+  assert.equal(parts.remainder, "");
 });
 
 test("tokenizer normalisation does not rewrite the edited text", () => {
