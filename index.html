@@ -6,7 +6,7 @@
   <title>Водяные знаки в LLM</title>
   <meta name="description" content="Песочница водяных знаков для текста языковых моделей: зелёный/красный список Kirchenbauer и турнирное семплирование SynthID-Text." />
   <script src="coi-serviceworker.js"></script>
-  <link rel="stylesheet" href="style.css?v=32" />
+  <link rel="stylesheet" href="style.css?v=33" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖋️</text></svg>" />
 </head>
 <body>
@@ -98,12 +98,12 @@
       </div>
 
       <div class="field">
-        <label>Режим водяного знака</label>
+        <div class="field-heading"><label>Режим водяного знака</label><button type="button" class="tip" id="wm-mode-help" aria-label="Подсказка о режиме водяного знака">?</button></div>
         <div class="segmented" role="radiogroup" aria-label="Режим водяного знака">
-          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="none" /><span>Нет</span></label>
-          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="hard" /><span>Жёсткий</span></label>
-          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="soft" /><span>Мягкий</span></label>
-          <label class="hover-tip" tabindex="0"><input type="radio" name="wmMode" value="tournament" checked /><span>Турнир</span></label>
+          <label><input type="radio" name="wmMode" value="none" /><span>Нет</span></label>
+          <label><input type="radio" name="wmMode" value="hard" /><span>Жёсткий</span></label>
+          <label><input type="radio" name="wmMode" value="soft" /><span>Мягкий</span></label>
+          <label><input type="radio" name="wmMode" value="tournament" checked /><span>Турнир</span></label>
         </div>
       </div>
 
@@ -111,27 +111,27 @@
         <summary>Параметры генерации</summary>
         <div class="param-grid">
           <div class="param" data-param="maxTokens">
-            <label for="maxTokens">Лимит ответа <span class="tip" tabindex="0" data-tip="Максимальная длина ответа в токенах.">?</span></label>
+            <label for="maxTokens">Лимит ответа <button type="button" class="tip" data-tip="Максимальная длина ответа в токенах." aria-label="Подсказка">?</button></label>
             <input type="number" id="maxTokens" min="1" max="8192" step="1" value="4096" />
           </div>
           <div class="param" data-param="maxInput">
-            <label for="maxInput">Лимит запроса <span class="tip" tabindex="0" data-tip="Верхний предел токенов входного запроса. Реальный предел также зависит от модели и доступной памяти.">?</span></label>
+            <label for="maxInput">Лимит запроса <button type="button" class="tip" data-tip="Верхний предел токенов входного запроса. Реальный предел также зависит от модели и доступной памяти." aria-label="Подсказка">?</button></label>
             <input type="number" id="maxInput" min="128" max="32768" step="1" value="16384" />
           </div>
           <div class="param" data-param="temperature">
-            <label for="temperature">Температура <span class="tip" tabindex="0" data-tip="Управляет разнообразием продолжений.">?</span></label>
+            <label for="temperature">Температура <button type="button" class="tip" data-tip="Управляет разнообразием продолжений." aria-label="Подсказка">?</button></label>
             <input type="number" id="temperature" min="0" max="2" step="0.1" value="1.0" />
           </div>
           <div class="param" data-param="topK">
-            <label for="topK">top-k <span class="tip" tabindex="0" data-tip="Оставляет k наиболее вероятных вариантов следующего токена. 50 — обычное начальное значение; 0 отключает ограничение.">?</span></label>
+            <label for="topK">top-k <button type="button" class="tip" data-tip="Оставляет k наиболее вероятных вариантов следующего токена. 50 — обычное начальное значение; 0 отключает ограничение." aria-label="Подсказка">?</button></label>
             <input type="number" id="topK" min="0" max="1000" step="1" value="50" />
           </div>
           <div class="param" data-param="topP">
-            <label for="topP">top-p <span class="tip" tabindex="0" data-tip="Оставляет наиболее вероятные варианты до заданной доли.">?</span></label>
+            <label for="topP">top-p <button type="button" class="tip" data-tip="Оставляет наиболее вероятные варианты до заданной доли." aria-label="Подсказка">?</button></label>
             <input type="number" id="topP" min="0.05" max="1" step="0.05" value="1" />
           </div>
           <div class="param" data-param="seed">
-            <label for="seed">Сид <span class="tip" tabindex="0" data-tip="Начальное число случайного выбора. Закреплено на 42, чтобы можно было сравнивать режимы при одинаковых настройках.">?</span></label>
+            <label for="seed">Сид <button type="button" class="tip" data-tip="Начальное число случайного выбора. Закреплено на 42, чтобы можно было сравнивать режимы при одинаковых настройках." aria-label="Подсказка">?</button></label>
             <input type="text" id="seed" value="42" readonly />
           </div>
         </div>
@@ -141,37 +141,38 @@
         <summary>Параметры водяного знака</summary>
         <div class="param-grid">
           <div class="param" data-param="gamma">
-            <label for="gamma">Доля зелёных γ <span class="tip" tabindex="0" data-tip="Доля зелёных вариантов в водяном знаке.">?</span></label>
+            <label for="gamma">Доля зелёных γ <button type="button" class="tip" data-tip="Доля зелёных вариантов в водяном знаке." aria-label="Подсказка">?</button></label>
             <input type="number" id="gamma" min="0.05" max="0.95" step="0.05" value="0.5" />
           </div>
           <div class="param" data-param="delta">
-            <label for="delta">Сила метки δ <span class="tip" tabindex="0" data-tip="Добавка к оценке зелёных вариантов в мягком режиме. 2 — умеренное начальное значение; большая сила облегчает обнаружение, но может ухудшить текст.">?</span></label>
+            <label for="delta">Сила метки δ <button type="button" class="tip" data-tip="Добавка к оценке зелёных вариантов в мягком режиме. 2 — умеренное начальное значение; большая сила облегчает обнаружение, но может ухудшить текст." aria-label="Подсказка">?</button></label>
             <input type="number" id="delta" min="0" max="15" step="0.5" value="2.0" />
           </div>
           <div class="param" data-param="layers">
-            <label for="layers">Раунды турнира m <span class="tip" tabindex="0" data-tip="Число раундов отбора. В эталонной конфигурации SynthID Text — 30. Меньшее число ослабляет метку и ускоряет генерацию в браузере.">?</span></label>
+            <label for="layers">Раунды турнира m <button type="button" class="tip" data-tip="Число раундов отбора. В эталонной конфигурации SynthID Text — 30. Меньшее число ослабляет метку и ускоряет генерацию в браузере." aria-label="Подсказка">?</button></label>
             <input type="number" id="layers" min="1" max="30" step="1" value="30" />
           </div>
           <div class="param" data-param="ctxWidth">
-            <label for="ctxWidth">Контекст метки h <span class="tip" tabindex="0" data-tip="Сколько предыдущих токенов задают правило метки для следующего токена. По умолчанию 4 — как в эталонной настройке SynthID Text. При h=1 используется только последний токен: это допустимо, но правило чаще повторяется. Больший h делает метку чувствительнее к правкам текста.">?</span></label>
+            <label for="ctxWidth">Контекст метки h <button type="button" class="tip" data-tip="Сколько предыдущих токенов задают правило метки для следующего токена. По умолчанию 4 — как в эталонной настройке SynthID Text. При h=1 используется только последний токен: это допустимо, но правило чаще повторяется. Больший h делает метку чувствительнее к правкам текста." aria-label="Подсказка">?</button></label>
             <input type="number" id="ctxWidth" min="1" max="8" step="1" value="4" />
           </div>
           <div class="param" data-param="wmKey">
-            <label for="wmKey">Ключ <span class="tip" tabindex="0" data-tip="Строка, задающая правило метки. Для проверки нужен тот же ключ. Предложенное значение публичное и годится только для демонстрации.">?</span></label>
+            <label for="wmKey">Ключ <button type="button" class="tip" data-tip="Строка, задающая правило метки. Для проверки нужен тот же ключ. Предложенное значение публичное и годится только для демонстрации." aria-label="Подсказка">?</button></label>
             <input type="text" id="wmKey" value="ai_wrote_this" spellcheck="false" />
           </div>
         </div>
         <div class="field" id="redwords-field" data-param="redWords">
-          <label for="redWords">Всегда в красный список <span class="optional">(необязательно, через запятую)</span> <span class="tip" tabindex="0" data-tip="Слова без преимущества от водяного знака.">?</span></label>
+          <label for="redWords">Всегда в красный список <span class="optional">(необязательно, через запятую)</span> <button type="button" class="tip" data-tip="Слова без преимущества от водяного знака." aria-label="Подсказка">?</button></label>
           <input type="text" id="redWords" placeholder="например: Париж, маяк, огонь" spellcheck="false" />
         </div>
       </details>
 
       <div class="actions">
         <div class="action-row">
-          <span class="btn-tip" id="generate-tip" tabindex="0">
+          <span class="btn-tip">
             <button id="generate-btn" class="btn primary" disabled>Сгенерировать</button>
           </span>
+          <button type="button" class="tip" id="generate-tip" aria-label="Подсказка о генерации">?</button>
           <button id="stop-btn" class="btn ghost" hidden>Стоп</button>
         </div>
       </div>
@@ -190,13 +191,14 @@
             <input type="checkbox" id="color-text" checked />
             Раскраска
           </label>
+          <button type="button" class="tip" id="color-help" aria-label="Подсказка о раскраске">?</button>
           <div class="legend is-off" id="legend">
             <span class="legend-item"><span class="swatch green"></span><span id="legend-hi">зелёный список</span></span>
             <span class="legend-item"><span class="swatch red"></span><span id="legend-lo">красный список</span></span>
           </div>
         </div>
       </div>
-      <p class="seed-line hover-tip" tabindex="0" data-tip="42 — начальное число для случайного выбора продолжений.">Сид генерации: <strong id="seed-shown">42</strong></p>
+      <p class="seed-line">Сид генерации: <strong id="seed-shown">42</strong> <button type="button" class="tip" data-tip="42 — начальное число для случайного выбора продолжений." aria-label="Подсказка о сиде генерации">?</button></p>
 
       <div class="output" id="output" contenteditable="true" spellcheck="true"><span class="placeholder" id="output-placeholder">Сюда можно вставить свой текст и нажать «Проверить».</span><span class="prompt-echo" id="prompt-echo"></span><span class="tokens" id="tokens"></span></div>
     </section>
@@ -214,46 +216,52 @@
       </div>
 
       <div class="field">
-        <label>Алгоритм проверки</label>
+        <div class="field-heading"><label>Алгоритм проверки</label><button type="button" class="tip" id="detect-mode-help" aria-label="Подсказка об алгоритме проверки">?</button></div>
         <div class="segmented" role="radiogroup" aria-label="Алгоритм проверки">
-          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="none" /><span>Нет</span></label>
-          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="hard" /><span>Жёсткий</span></label>
-          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="soft" /><span>Мягкий</span></label>
-          <label class="hover-tip" tabindex="0"><input type="radio" name="detectMode" value="tournament" checked /><span>Турнир</span></label>
+          <label><input type="radio" name="detectMode" value="none" /><span>Нет</span></label>
+          <label><input type="radio" name="detectMode" value="hard" /><span>Жёсткий</span></label>
+          <label><input type="radio" name="detectMode" value="soft" /><span>Мягкий</span></label>
+          <label><input type="radio" name="detectMode" value="tournament" checked /><span>Турнир</span></label>
         </div>
       </div>
 
       <div class="detect-key">
-        <label for="detectKey">Ключ детектора <span class="tip" tabindex="0" data-tip="Ключ для восстановления правила водяного знака.">?</span></label>
+        <label for="detectKey">Ключ детектора <button type="button" class="tip" data-tip="Ключ для восстановления правила водяного знака." aria-label="Подсказка">?</button></label>
         <input type="text" id="detectKey" value="ai_wrote_this" spellcheck="false" />
       </div>
 
       <div class="detect-row">
-        <span class="btn-tip" id="detect-tip" tabindex="0">
+        <span class="btn-tip">
           <button id="detect-btn" class="btn secondary" disabled>Проверить</button>
         </span>
+        <button type="button" class="tip" id="detect-tip" aria-label="Подсказка о проверке">?</button>
       </div>
 
       <div class="verdict" id="verdict" hidden>
         <div class="verdict-head">
           <span class="verdict-label" id="verdict-label"></span>
-          <span class="verdict-conf hover-tip" id="verdict-conf" tabindex="0"></span>
+          <span class="verdict-conf" id="verdict-conf"></span><button type="button" class="tip" id="verdict-conf-help" aria-label="Что означает сила сигнала">?</button>
         </div>
         <div class="meter"><div class="meter-fill" id="meter-fill"></div></div>
         <dl class="stats">
-          <div class="hover-tip" id="tip-scheme" tabindex="0"><dt>детектор</dt><dd id="stat-scheme"></dd></div>
-          <div class="hover-tip" id="tip-green" tabindex="0"><dt id="stat-first-label">зелёные токены</dt><dd id="stat-green"></dd></div>
-          <div class="hover-tip" id="tip-mean" tabindex="0" hidden><dt>среднее</dt><dd id="stat-mean"></dd></div>
-          <div class="hover-tip" id="tip-z" tabindex="0"><dt>z-оценка</dt><dd id="stat-z"></dd></div>
-          <div class="hover-tip" id="tip-p" tabindex="0"><dt>p-значение</dt><dd id="stat-p"></dd></div>
+          <div id="tip-scheme"><dt>детектор <button type="button" class="tip" id="tip-scheme-help" aria-label="Подсказка о детекторе">?</button></dt><dd id="stat-scheme"></dd></div>
+          <div id="tip-green"><dt><span id="stat-first-label">зелёные токены</span> <button type="button" class="tip" id="tip-green-help" aria-label="Подсказка об оценках токенов">?</button></dt><dd id="stat-green"></dd></div>
+          <div id="tip-mean" hidden><dt>среднее <button type="button" class="tip" id="tip-mean-help" aria-label="Подсказка о среднем">?</button></dt><dd id="stat-mean"></dd></div>
+          <div id="tip-z"><dt>z-оценка <button type="button" class="tip" id="tip-z-help" aria-label="Подсказка о z-оценке">?</button></dt><dd id="stat-z"></dd></div>
+          <div id="tip-p"><dt>p-значение <button type="button" class="tip" id="tip-p-help" aria-label="Подсказка о p-значении">?</button></dt><dd id="stat-p"></dd></div>
         </dl>
-        <div class="strength-chart hover-tip" id="strength-chart" tabindex="0" hidden></div>
-        <p class="hint hover-tip" id="verdict-note" tabindex="0"></p>
+        <div class="strength-chart" id="strength-chart" hidden>
+          <div class="strength-chart-head"><strong>Сигнал метки по ходу текста</strong><button type="button" class="tip" id="strength-chart-help" aria-label="Как читать график">?</button></div>
+          <div id="strength-chart-plot"></div>
+          <p class="strength-chart-readout" id="strength-chart-readout"></p>
+          <p class="strength-chart-legend" id="strength-chart-legend"></p>
+        </div>
+        <div class="verdict-note-line"><p class="hint" id="verdict-note"></p><button type="button" class="tip" id="verdict-note-help" aria-label="Подсказка о выводе" hidden>?</button></div>
       </div>
     </section>
   </main>
 
   <div id="hint-pop" role="tooltip" hidden></div>
-  <script type="module" src="main.js?v=81"></script>
+  <script type="module" src="main.js?v=82"></script>
 </body>
 </html>

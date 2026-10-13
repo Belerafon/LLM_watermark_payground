@@ -76,7 +76,16 @@ const els = {
   statZ: $("stat-z"),
   statP: $("stat-p"),
   verdictNote: $("verdict-note"),
+  verdictNoteHelp: $("verdict-note-help"),
   strengthChart: $("strength-chart"),
+  strengthChartPlot: $("strength-chart-plot"),
+  strengthChartHelp: $("strength-chart-help"),
+  strengthChartReadout: $("strength-chart-readout"),
+  strengthChartLegend: $("strength-chart-legend"),
+  wmModeHelp: $("wm-mode-help"),
+  detectModeHelp: $("detect-mode-help"),
+  colorHelp: $("color-help"),
+  verdictConfHelp: $("verdict-conf-help"),
   copyOutput: $("copy-output"),
   copyVerdict: $("copy-verdict"),
 };
@@ -509,10 +518,7 @@ function syncParamVisibility() {
     el.hidden = !visible.has(el.dataset.param);
   });
   if (els.generateTip) els.generateTip.dataset.tip = MODE_HINT[mode] ?? "";
-  document.querySelectorAll('input[name="wmMode"]').forEach((input) => {
-    const label = input.closest("label");
-    if (label) label.dataset.tip = MODE_HINT[input.value] ?? "";
-  });
+  if (els.wmModeHelp) els.wmModeHelp.dataset.tip = MODE_HINT[mode] ?? "";
   syncDetectUi();
 }
 
@@ -524,10 +530,7 @@ function syncDetectUi() {
     "Ключ берётся из поля «Ключ детектора». Длина контекста, число раундов турнира, доля зелёных и красный список — из настроек слева; используйте значения, с которыми текст помечали.\n\n" +
     "Для вставленного текста проверяются первые 2000 токенов — слов или частей слов. Начало используется как контекст. Результат относится к правилу этой программы: чужую метку с неизвестными настройками она не распознает.";
   if (els.detectTip) els.detectTip.dataset.tip = tip;
-  document.querySelectorAll('input[name="detectMode"]').forEach((input) => {
-    const label = input.closest("label");
-    if (label) label.dataset.tip = DETECT_HINT[input.value] ?? "";
-  });
+  if (els.detectModeHelp) els.detectModeHelp.dataset.tip = DETECT_HINT[mode] ?? "";
 }
 
 const MODE_LABEL = { hard: "жёстким водяным знаком", soft: "мягким водяным знаком", tournament: "турниром SynthID" };
@@ -1043,7 +1046,7 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, me
   els.verdictConf.textContent = `сила ${pctText}`;
   els.meterFill.style.width = `${pct.toFixed(1)}%`;
   // Plain-language tooltip: the technical details live on z/p in the stats table.
-  els.verdictConf.dataset.tip =
+  els.verdictConfHelp.dataset.tip =
     `«Сила» — насколько сигнал водяного знака выделяется на фоне обычного текста без метки, с учётом длины проверенного текста.\n\nЧем выше процент, тем необычнее такой сигнал для немаркированного текста. Небольшое превышение на длинном тексте весит больше, чем крупное на коротком.\n\nЕсли текста мало, процент намеренно занижен: короткий текст не даёт уверенного ответа.\n\nЭто не вероятность авторства ИИ — такую вероятность инструмент не вычисляет. Подробные числа с пояснениями — в таблице ниже (z-оценка и p-значение).`;
 
   els.statScheme.textContent = tournament ? `SynthID · ${m} раундов` : "зелёный список";
@@ -1056,14 +1059,15 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, me
   els.statZ.textContent = T ? zVal.toFixed(2) : "—";
   els.statP.textContent = T ? fmtP(pValue) : "—";
   els.verdictNote.hidden = !note;
+  els.verdictNoteHelp.hidden = !note;
   els.verdictNote.textContent = note;
   setVerdictTips({ tournament, z: zVal, pValue, greenCount, T, totalT, gamma: gammaVal, meanG: plainMean, weightedMeanG: g, m, h, ready, reference, expectedSource });
 }
 
 function setVerdictTips({ tournament, z, pValue, greenCount, T, totalT, gamma, meanG, weightedMeanG, m, h, ready, reference, expectedSource }) {
   const tip = (id, text) => {
-    const el = document.getElementById(id);
-    if (el) el.dataset.tip = text;
+    const help = document.getElementById(id === "verdict-note" ? "verdict-note-help" : `${id}-help`);
+    if (help) help.dataset.tip = text;
   };
   const counting = tournament
     ? `Учтено ${T} из ${totalT} проверяемых токенов. Повторяющийся контекст учитывается один раз — как в официальном детекторе synthid-text (compute_context_repetition_mask): повтор не даёт нового свидетельства метки.`
@@ -1182,7 +1186,7 @@ function renderStrengthChart(msg) {
   const total = scores ? scores.length : 0;
   if (total < 10) {
     host.hidden = true;
-    host.replaceChildren();
+    els.strengthChartPlot.replaceChildren();
     return;
   }
   const mask = tournament ? msg.mask : null;
@@ -1192,36 +1196,27 @@ function renderStrengthChart(msg) {
   const { window: W, points } = computeStrengthSeries(scores, { mask, sigmaPerToken });
   if (points.length < 2) {
     host.hidden = true;
-    host.replaceChildren();
+    els.strengthChartPlot.replaceChildren();
     return;
   }
 
-  const Wc = 640;
-  const Hc = 132;
-  const padL = 6;
-  const padR = 6;
-  const padT = 8;
-  const padB = 18;
+  const Wc = 480;
+  const Hc = 320;
+  const padL = 55;
+  const padR = 18;
+  const padT = 40;
+  const padB = 65;
   const iw = Wc - padL - padR;
   const ih = Hc - padT - padB;
   const yLo = tournament ? 0.5 : (msg.gamma ?? 0.5); // no-mark level
-  let yMin = yLo;
-  let yMax = yLo;
-  for (const p of points) {
-    yMin = Math.min(yMin, p.v - 2 * p.sigma);
-    yMax = Math.max(yMax, p.v + 2 * p.sigma);
-  }
-  const span = Math.max(0.02, yMax - yMin);
-  yMin = Math.max(0, yMin - span * 0.1);
-  yMax = Math.min(1, yMax + span * 0.1);
   const x = (t) => padL + (iw * t) / Math.max(1, total - 1);
-  const y = (v) => padT + ih * (1 - (v - yMin) / (yMax - yMin));
+  const y = (v) => padT + ih * (1 - v);
 
   const NS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${Wc} ${Hc}`);
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", "Локальная сила метки по ходу текста");
+  svg.setAttribute("aria-label", `Сигнал метки по ходу текста: горизонтальная ось — позиция токена от 1 до ${total}, вертикальная — доля от 0 до 100 процентов.`);
   const el = (name, attrs, text) => {
     const node = document.createElementNS(NS, name);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
@@ -1230,46 +1225,61 @@ function renderStrengthChart(msg) {
     return node;
   };
 
-  // ±2σ "ordinary noise" band under the no-mark null.
+  for (const value of [0, 0.25, 0.5, 0.75, 1]) {
+    const yy = y(value).toFixed(1);
+    el("line", { x1: padL, x2: Wc - padR, y1: yy, y2: yy, class: "sc-grid" });
+    el("text", { x: padL - 12, y: Number(yy) + 6, "text-anchor": "end", class: "sc-axis-text" }, `${Math.round(value * 100)}%`);
+  }
+  for (const [position, label, anchor] of [[0, "1", "start"], [(total - 1) / 2, String(Math.round((total + 1) / 2)), "middle"], [total - 1, String(total), "end"]]) {
+    const xx = x(position).toFixed(1);
+    el("line", { x1: xx, x2: xx, y1: Hc - padB, y2: Hc - padB + 7, class: "sc-axis" });
+    el("text", { x: xx, y: Hc - padB + 29, "text-anchor": anchor, class: "sc-axis-text" }, label);
+  }
+  el("line", { x1: padL, x2: padL, y1: padT, y2: Hc - padB, class: "sc-axis" });
+  el("line", { x1: padL, x2: Wc - padR, y1: Hc - padB, y2: Hc - padB, class: "sc-axis" });
+  el("text", { x: Wc / 2, y: Hc - 12, "text-anchor": "middle", class: "sc-axis-title" }, "Позиция в тексте (токены)");
+  el("text", { x: padL, y: 24, class: "sc-axis-title" }, "Доля метки, %");
+
+  // ±2σ ordinary range around the unmarked baseline.
   let band = "";
-  for (const p of points) band += `${x(p.t).toFixed(1)},${y(Math.min(1, p.v + 2 * p.sigma)).toFixed(1)} `;
+  for (const p of points) band += `${x(p.t).toFixed(1)},${y(Math.min(1, yLo + 2 * p.sigma)).toFixed(1)} `;
   for (let i = points.length - 1; i >= 0; i--) {
     const p = points[i];
-    band += `${x(p.t).toFixed(1)},${y(Math.max(0, p.v - 2 * p.sigma)).toFixed(1)} `;
+    band += `${x(p.t).toFixed(1)},${y(Math.max(0, yLo - 2 * p.sigma)).toFixed(1)} `;
   }
   el("polygon", { points: band.trim(), class: "sc-band" });
-  if (yMin < yLo && yMax > yLo) {
-    el("line", { x1: padL, x2: Wc - padR, y1: y(yLo).toFixed(1), y2: y(yLo).toFixed(1), class: "sc-null" });
-  }
+  el("line", { x1: padL, x2: Wc - padR, y1: y(yLo).toFixed(1), y2: y(yLo).toFixed(1), class: "sc-null" });
   el("polyline", {
     points: points.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" "),
     class: "sc-line",
   });
 
   const guide = el("line", { x1: 0, x2: 0, y1: padT, y2: Hc - padB, class: "sc-guide" });
-  const label = el("text", { x: padL + 2, y: Hc - 5, class: "sc-label" }, `скользящее окно ${W} токенов`);
+  const defaultReadout = `Среднее по окну ${W} токенов. Наведите на линию, чтобы увидеть значение в точке.`;
+  els.strengthChartReadout.textContent = defaultReadout;
   const pick = (evt) => {
     const rect = svg.getBoundingClientRect();
-    const frac = Math.min(1, Math.max(0, (evt.clientX - rect.left) / rect.width));
+    const frac = Math.min(1, Math.max(0, ((evt.clientX - rect.left) / rect.width * Wc - padL) / iw));
     const t = frac * (total - 1);
     let best = points[0];
     for (const p of points) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
     guide.setAttribute("x1", x(best.t).toFixed(1));
     guide.setAttribute("x2", x(best.t).toFixed(1));
-    label.textContent = `токен ${best.t + 1} из ${total} · среднее по окну ${(best.v * 100).toFixed(1)}%`;
+    els.strengthChartReadout.textContent = `Токен ${best.t + 1} из ${total} · доля по окну ${(best.v * 100).toFixed(1)}% · без метки ${(yLo * 100).toFixed(0)}%`;
   };
   const reset = () => {
     guide.setAttribute("x1", "0");
     guide.setAttribute("x2", "0");
-    label.textContent = `скользящее окно ${W} токенов`;
+    els.strengthChartReadout.textContent = defaultReadout;
   };
   svg.addEventListener("mousemove", pick);
   svg.addEventListener("mouseleave", reset);
 
-  host.replaceChildren(svg);
-  host.dataset.tip = tournament
+  els.strengthChartPlot.replaceChildren(svg);
+  els.strengthChartHelp.dataset.tip = tournament
     ? `Локальная сила метки по ходу текста: среднее g-оценок (взвешенных, как в Weighted Mean) в скользящем окне ${W} токенов. Пунктир — уровень 50% без метки, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`
     : `Локальная сила метки по ходу текста: доля зелёных токенов в скользящем окне ${W} токенов. Пунктир — ожидаемая без метки доля γ, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`;
+  els.strengthChartLegend.textContent = `Линия — доля метки; пунктир — без метки (${(yLo * 100).toFixed(0)}%); серая полоса — обычный разброс.`;
   host.hidden = false;
 }
 
@@ -1329,7 +1339,7 @@ function paintDetection(msg) {
   }
   els.legendHi.textContent = tournament ? "единиц ≥ 50%" : "зелёный список";
   els.legendLo.textContent = tournament ? "единиц < 50%" : "красный список";
-  els.colorText.closest("label").dataset.tip = tournament
+  els.colorHelp.dataset.tip = tournament
     ? "Показывает оценки отдельных токенов — слов или частей слов. В каждом раунде правило турнира даёт токену 0 или 1; единица даёт преимущество при генерации. Зелёный цвет: единиц не меньше половины, красный: меньше половины. Цвет не означает, что слово правильное или ошибочное. Выключение раскраски не меняет проверку."
     : "Показывает, какие токены — слова или части слов — входят в зелёный и красный списки по ключу детектора. Зелёные получают преимущество при генерации с меткой. Отдельное зелёное слово встречается и без метки; важна общая доля. Выключение раскраски не меняет проверку.";
   setLegend(color);
@@ -1462,22 +1472,22 @@ const hintPop = document.getElementById("hint-pop");
 const HINT_SHOW_DELAY = 800; // ms a hover must persist before the tooltip appears
 let hintAnchor = null;
 let hintPending = null; // host whose tooltip is still waiting out the delay
+let hintPinned = false;
 let hintShowTimer;
 let hintHideTimer;
 function tipHost(node) {
-  const el = node?.closest?.("[data-tip], label");
-  if (!el) return null;
-  if (el.dataset.tip) return el;
-  const inner = el.querySelector("[data-tip]");
-  return inner?.dataset.tip ? inner : null;
+  const el = node?.closest?.("[data-tip]");
+  return el && !el.classList.contains("tip") && el.dataset.tip ? el : null;
 }
 function placeHint(anchor) {
   const text = anchor.dataset.tip;
   if (!text) return;
+  if (hintAnchor?.classList.contains("tip")) hintAnchor.setAttribute("aria-expanded", "false");
   clearTimeout(hintHideTimer);
   clearTimeout(hintShowTimer);
   hintPending = null;
   hintAnchor = anchor;
+  if (anchor.classList.contains("tip")) anchor.setAttribute("aria-expanded", "true");
   hintPop.hidden = false;
   hintPop.textContent = text;
   const margin = 8;
@@ -1497,9 +1507,28 @@ function hideHint() {
   clearTimeout(hintShowTimer);
   hintPending = null;
   hintPop.hidden = true;
+  if (hintAnchor?.classList.contains("tip")) hintAnchor.setAttribute("aria-expanded", "false");
   hintAnchor = null;
+  hintPinned = false;
 }
+document.addEventListener("click", (e) => {
+  const help = e.target.closest?.(".tip[data-tip]");
+  if (help) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hintPinned && hintAnchor === help) hideHint();
+    else {
+      hideHint();
+      help.setAttribute("aria-controls", "hint-pop");
+      placeHint(help);
+      hintPinned = true;
+    }
+  } else if (hintPinned && !hintPop.contains(e.target)) {
+    hideHint();
+  }
+});
 document.addEventListener("mouseover", (e) => {
+  if (hintPinned) return;
   if (hintPop.contains(e.target)) {
     clearTimeout(hintHideTimer);
     return;
@@ -1521,6 +1550,7 @@ document.addEventListener("mouseover", (e) => {
   }, HINT_SHOW_DELAY);
 });
 document.addEventListener("mouseout", (e) => {
+  if (hintPinned) return;
   const host = tipHost(e.target);
   if (!host && !hintPop.contains(e.target)) return;
   if (hintAnchor?.contains(e.relatedTarget) || hintPop.contains(e.relatedTarget)) return;
@@ -1534,14 +1564,15 @@ document.addEventListener("mouseout", (e) => {
 });
 document.addEventListener("focusin", (e) => {
   const host = e.target.closest?.("[data-tip]");
-  if (host?.dataset.tip) placeHint(host);
+  if (host?.dataset.tip && !host.classList.contains("tip") && !hintPinned) placeHint(host);
 });
-document.addEventListener("focusout", hideHint);
+document.addEventListener("focusout", () => { if (!hintPinned) hideHint(); });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") hideHint();
 });
 window.addEventListener("scroll", (e) => {
   if (e.target === hintPop) return;
+  if (hintPinned && hintAnchor?.isConnected) { placeHint(hintAnchor); return; }
   if (hintAnchor?.contains(document.activeElement)) placeHint(hintAnchor);
   else hideHint();
 }, true);

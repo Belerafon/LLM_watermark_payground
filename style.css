@@ -188,17 +188,22 @@ input:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* tooltip */
 .tip {
+  font-family: inherit;
   position: relative;
   display: inline-grid; place-items: center;
-  width: 15px; height: 15px;
+  width: 22px; height: 22px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-muted);
-  font-size: 10.5px; font-weight: 600;
-  cursor: help;
+  font-size: 13px; font-weight: 700;
+  cursor: pointer;
   vertical-align: 1px;
 }
+.tip:hover, .tip:focus-visible, .tip[aria-expanded="true"] { color: var(--text); border-color: var(--accent); }
+.field-heading { display: flex; align-items: center; gap: 6px; }
+.field-heading label { margin: 0; }
 .tip::after, .hover-tip::after, .btn-tip::after { content: none; }
 
 /* Hover hint. On a wrapper, not a disabled button: disabled controls do not receive hover. */
@@ -297,7 +302,7 @@ h1.hover-tip { display: inline-block; }
 
 /* ── Buttons ── */
 .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-.action-row { display: flex; gap: 10px; }
+.action-row { display: flex; align-items: center; gap: 10px; }
 .btn-hint { margin: 0; }
 .btn {
   font: inherit; font-weight: 600; font-size: 14px;
@@ -356,9 +361,14 @@ h1.hover-tip { display: inline-block; }
 .icon-btn.copied .ico-check { display: block; }
 
 /* Local watermark strength chart under the stats table. */
-.strength-chart { margin-top: 10px; }
+.strength-chart { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); }
+.strength-chart-head { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .strength-chart svg { display: block; width: 100%; height: auto; }
-.strength-chart .sc-band { fill: var(--surface-2); }
+.strength-chart .sc-band { fill: var(--surface-2); opacity: 0.8; }
+.strength-chart .sc-grid { stroke: var(--border); stroke-width: 1; }
+.strength-chart .sc-axis { stroke: var(--text-muted); stroke-width: 1.5; }
+.strength-chart .sc-axis-text { fill: var(--text); font-size: 20px; font-family: var(--font-body); }
+.strength-chart .sc-axis-title { fill: var(--text); font-size: 20px; font-weight: 600; font-family: var(--font-body); }
 .strength-chart .sc-null {
   stroke: var(--text-muted);
   stroke-width: 1;
@@ -372,11 +382,8 @@ h1.hover-tip { display: inline-block; }
   stroke-linejoin: round;
 }
 .strength-chart .sc-guide { stroke: var(--text-muted); stroke-width: 1; opacity: 0.7; }
-.strength-chart .sc-label {
-  fill: var(--text-muted);
-  font-size: 11px;
-  font-family: var(--font-body);
-}
+.strength-chart-readout { min-height: 2.8em; margin: 0; color: var(--text); font-size: 13px; line-height: 1.4; }
+.strength-chart-legend { margin: 5px 0 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.4; }
 
 .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--text-muted); min-width: 196px; justify-content: flex-end; }
 .legend.is-off { visibility: hidden; }
@@ -435,7 +442,8 @@ input[readonly] { background: var(--surface-2); color: var(--text-muted); cursor
 
 
 .detect-key { margin-top: 0; }
-.detect-row { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.detect-row { margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+.detect-row .btn-tip { flex: 1; }
 .detect-row .btn { width: 100%; }
 
 
@@ -447,7 +455,10 @@ input[readonly] { background: var(--surface-2); color: var(--text-muted); cursor
   padding: 16px;
   background: color-mix(in srgb, var(--surface-2) 60%, transparent);
 }
-.verdict-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.verdict-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.verdict-conf { margin-left: auto; }
+.verdict-note-line { display: flex; align-items: flex-start; gap: 8px; }
+.verdict-note-line .tip { flex: none; margin-top: 5px; }
 .verdict-label { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
 .verdict-label.pos { color: var(--green); }
 .verdict-label.mid { color: #ca8a04; }
@@ -462,8 +473,9 @@ input[readonly] { background: var(--surface-2); color: var(--text-muted); cursor
 }
 
 .stats { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 0; }
-.stats div { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: help; }
+.stats div { margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .stats dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.stats dt .tip { text-transform: none; letter-spacing: normal; vertical-align: middle; }
 .stats dd { margin: 0; font-family: var(--font-mono); font-size: 14px; font-weight: 500; text-align: right; overflow-wrap: anywhere; }
 #verdict-note { margin-top: 12px; }
 

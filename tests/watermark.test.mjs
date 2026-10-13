@@ -288,10 +288,10 @@ test("verdict and its tooltip describe the same signal and explain repetitions",
   // Not enough data → short operational note, no wall of text.
   assert.match(node("verdictNote").textContent, /Данных мало/);
   // The repetition accounting lives in the green-score tooltip.
-  assert.match(node("tip-green").dataset.tip, /Учтено 1 из 200[\s\S]*повторяющийся контекст/i);
-  assert.match(node("verdict-note").dataset.tip, /Оценка 1 даёт преимущество/);
-  assert.doesNotMatch(node("verdict-note").dataset.tip, /Порог z|пересказывает z/);
-  assert.match(node("verdictConf").dataset.tip, /не вероятность авторства/);
+  assert.match(node("tip-green-help").dataset.tip, /Учтено 1 из 200[\s\S]*повторяющийся контекст/i);
+  assert.match(node("verdict-note-help").dataset.tip, /Оценка 1 даёт преимущество/);
+  assert.doesNotMatch(node("verdict-note-help").dataset.tip, /Порог z|пересказывает z/);
+  assert.match(node("verdictConfHelp").dataset.tip, /не вероятность авторства/);
 });
 
 /* ── verdict / strength follow the statistical evidence, not a reference ── */
@@ -321,7 +321,7 @@ test("strong statistical evidence is not hidden by reference levels (T=500, m=30
   assert.ok(meterWidth(node) > 95); // z = 7.35 saturates the conditional scale
   // The note stays short; the nominal-thresholds caveat lives on the z tooltip.
   assert.doesNotMatch(node("verdictNote").textContent, /номинальные/);
-  assert.match(node("tip-z").dataset.tip, /номинальные/);
+  assert.match(node("tip-z-help").dataset.tip, /номинальные/);
 });
 
 test("long texts near the null level show no expressed signal (both schemes)", () => {
@@ -453,7 +453,7 @@ test("the badge shows only the strength percent; z lives in the stats table", ()
   assert.match(node("verdictConf").textContent, /^сила \d+(,\d+)?(\.\d+)?%$/);
   assert.doesNotMatch(node("verdictConf").textContent, /z|·/);
   assert.equal(node("statZ").textContent, "2.20"); // z stays in the stats row
-  assert.ok(node("verdictConf").dataset.tip.length > 0);
+  assert.ok(node("verdictConfHelp").dataset.tip.length > 0);
   assert.equal(node("copyVerdict").disabled, false); // copy action unlocks with the verdict
 });
 
