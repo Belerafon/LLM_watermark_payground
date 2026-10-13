@@ -1593,36 +1593,30 @@ updateButtons();
 setStatus("Выберите модель для скачивания или нажмите «Загрузить» рядом с уже скачанной моделью.");
 refreshCachedModels();
 
-/* ── page version: last commit hash + date in the header ── */
+/* ── page version: deployed commit hash + date in the header ── */
 const VERSION_REPO = "Belerafon/LLM_watermark_payground";
 
 async function loadPageVersion() {
   const el = document.getElementById("page-version");
   if (!el) return;
-  let info = null;
   // version.json is stamped by the deploy workflow with the exact commit
-  // being published (absent in a local checkout without one).
+  // being published. It is the only source: the badge states what this
+  // page actually is, not where the branch head happens to be. In a local
+  // checkout without one the badge simply stays hidden.
   try {
     const r = await fetch("version.json", { cache: "no-cache" });
-    if (r.ok) info = await r.json();
-  } catch { /* missing or offline */ }
-  // Live version: HEAD of the default branch — what GitHub Pages serves.
-  try {
-    const r = await fetch(`https://api.github.com/repos/${VERSION_REPO}/commits?per_page=1`);
-    if (r.ok) {
-      const [c] = await r.json();
-      if (c?.sha) info = { sha: c.sha, commit: c.sha.slice(0, 7), time: c.commit?.committer?.date };
-    }
-  } catch { /* offline: keep the snapshot */ }
-  if (!info?.commit) return;
-  const date = new Date(info.time);
-  if (Number.isNaN(date.getTime())) return;
-  el.textContent = `${info.commit} · ${date.toLocaleString("ru-RU", {
-    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  })}`;
-  el.href = info.sha
-    ? `https://github.com/${VERSION_REPO}/commit/${info.sha}`
-    : `https://github.com/${VERSION_REPO}/commits`;
-  el.hidden = false;
+    if (!r.ok) return;
+    const info = await r.json();
+    if (!info?.commit) return;
+    const date = new Date(info.time);
+    if (Number.isNaN(date.getTime())) return;
+    el.textContent = `${info.commit} · ${date.toLocaleString("ru-RU", {
+      day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+    })}`;
+    el.href = info.sha
+      ? `https://github.com/${VERSION_REPO}/commit/${info.sha}`
+      : `https://github.com/${VERSION_REPO}/commits`;
+    el.hidden = false;
+  } catch { /* missing or offline: keep the badge hidden */ }
 }
 loadPageVersion();
