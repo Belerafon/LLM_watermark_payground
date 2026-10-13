@@ -1217,7 +1217,7 @@ function renderStrengthChart(msg) {
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${Wc} ${Hc}`);
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Сигнал метки по ходу текста: горизонтальная ось — позиция токена от 1 до ${total}, вертикальная — доля метки от 40 до 60 процентов.`);
+  svg.setAttribute("aria-label", `Сигнал метки по ходу текста: горизонтальная ось — позиция токена от 1 до ${total}, вертикальная — ${tournament ? "взвешенное среднее g" : "доля зелёных токенов"} от 40 до 60 процентов.`);
   const el = (name, attrs, text) => {
     const node = document.createElementNS(NS, name);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
@@ -1239,7 +1239,7 @@ function renderStrengthChart(msg) {
   el("line", { x1: padL, x2: padL, y1: padT, y2: Hc - padB, class: "sc-axis" });
   el("line", { x1: padL, x2: Wc - padR, y1: Hc - padB, y2: Hc - padB, class: "sc-axis" });
   el("text", { x: Wc / 2, y: Hc - 12, "text-anchor": "middle", class: "sc-axis-title" }, "Позиция в тексте (токены)");
-  el("text", { x: padL, y: 24, class: "sc-axis-title" }, "Доля метки, %");
+  el("text", { x: padL, y: 24, class: "sc-axis-title" }, tournament ? "Взвешенное среднее, %" : "Доля зелёных, %");
 
   // ±2σ ordinary range around the unmarked baseline.
   let band = "";
@@ -1256,8 +1256,8 @@ function renderStrengthChart(msg) {
   });
 
   // Hover trace lives entirely inside the SVG: a guide line, a dot on the
-  // curve and one number — the mark level at that point. Nothing outside
-  // the chart is rewritten, so the layout cannot jump on hover.
+  // curve and one number — the local window value at that point. Nothing
+  // outside the chart is rewritten, so the layout cannot jump on hover.
   const guide = el("line", { x1: 0, x2: 0, y1: padT, y2: Hc - padB, class: "sc-guide", visibility: "hidden" });
   const dot = el("circle", { cx: 0, cy: 0, r: 6, class: "sc-dot", visibility: "hidden" });
   const tip = el("text", { x: 0, y: 0, class: "sc-tip", "text-anchor": "middle", visibility: "hidden" });
@@ -1288,9 +1288,11 @@ function renderStrengthChart(msg) {
 
   els.strengthChartPlot.replaceChildren(svg);
   els.strengthChartHelp.dataset.tip = tournament
-    ? `Локальная сила метки по ходу текста: среднее g-оценок (взвешенных, как в Weighted Mean) в скользящем окне ${W} токенов. Пунктир — уровень 50% без метки, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`
-    : `Локальная сила метки по ходу текста: доля зелёных токенов в скользящем окне ${W} токенов. Пунктир — ожидаемая без метки доля γ, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`;
-  els.strengthChartLegend.textContent = `Линия — доля метки; пунктир — без метки (${(yLo * 100).toFixed(0)}%); серая полоса — обычный разброс.`;
+    ? `Взвешенное среднее по ходу текста: среднее взвешенных g-оценок (веса как в Weighted Mean из таблицы выше) в скользящем окне ${W} токенов. Пунктир — уровень 50% без метки, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`
+    : `Доля зелёных токенов по ходу текста: доля зелёных в скользящем окне ${W} токенов (та же величина, что «зелёные токены» в таблице выше, но локально). Пунктир — ожидаемая без метки доля γ, серая полоса — обычный случайный разброс (±2 стандартных отклонения). Участок, где линия устойчиво выше полосы, несёт метку; внутри полосы — как без метки. Наведите курсор, чтобы увидеть значение в конкретном месте.`;
+  els.strengthChartLegend.textContent = tournament
+    ? `Линия — взвешенное среднее g по окну ${W} токенов (та же величина, что «взвешенное среднее» в таблице выше, но локально); пунктир — без метки (${(yLo * 100).toFixed(0)}%); серая полоса — обычный разброс.`
+    : `Линия — доля зелёных токенов по окну ${W} токенов (та же величина, что «зелёные токены» в таблице выше, но локально); пунктир — без метки (${(yLo * 100).toFixed(0)}%); серая полоса — обычный разброс.`;
   host.hidden = false;
 }
 
