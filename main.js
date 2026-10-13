@@ -80,7 +80,6 @@ const els = {
   strengthChart: $("strength-chart"),
   strengthChartPlot: $("strength-chart-plot"),
   strengthChartHelp: $("strength-chart-help"),
-  strengthChartReadout: $("strength-chart-readout"),
   strengthChartLegend: $("strength-chart-legend"),
   wmModeHelp: $("wm-mode-help"),
   detectModeHelp: $("detect-mode-help"),
@@ -1209,14 +1208,16 @@ function renderStrengthChart(msg) {
   const iw = Wc - padL - padR;
   const ih = Hc - padT - padB;
   const yLo = tournament ? 0.5 : (msg.gamma ?? 0.5); // no-mark level
+  const yMin = 0.4; // fixed vertical scale: 40–60%
+  const yMax = 0.6;
   const x = (t) => padL + (iw * t) / Math.max(1, total - 1);
-  const y = (v) => padT + ih * (1 - v);
+  const y = (v) => padT + ih * (1 - (Math.min(yMax, Math.max(yMin, v)) - yMin) / (yMax - yMin));
 
   const NS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${Wc} ${Hc}`);
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `Сигнал метки по ходу текста: горизонтальная ось — позиция токена от 1 до ${total}, вертикальная — доля от 0 до 100 процентов.`);
+  svg.setAttribute("aria-label", `Сигнал метки по ходу текста: горизонтальная ось — позиция токена от 1 до ${total}, вертикальная — доля метки от 40 до 60 процентов.`);
   const el = (name, attrs, text) => {
     const node = document.createElementNS(NS, name);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
@@ -1225,7 +1226,7 @@ function renderStrengthChart(msg) {
     return node;
   };
 
-  for (const value of [0, 0.25, 0.5, 0.75, 1]) {
+  for (const value of [0.4, 0.45, 0.5, 0.55, 0.6]) {
     const yy = y(value).toFixed(1);
     el("line", { x1: padL, x2: Wc - padR, y1: yy, y2: yy, class: "sc-grid" });
     el("text", { x: padL - 12, y: Number(yy) + 6, "text-anchor": "end", class: "sc-axis-text" }, `${Math.round(value * 100)}%`);
@@ -1254,23 +1255,33 @@ function renderStrengthChart(msg) {
     class: "sc-line",
   });
 
-  const guide = el("line", { x1: 0, x2: 0, y1: padT, y2: Hc - padB, class: "sc-guide" });
-  const defaultReadout = `Среднее по окну ${W} токенов. Наведите на линию, чтобы увидеть значение в точке.`;
-  els.strengthChartReadout.textContent = defaultReadout;
+  // Hover trace lives entirely inside the SVG: a guide line, a dot on the
+  // curve and one number — the mark level at that point. Nothing outside
+  // the chart is rewritten, so the layout cannot jump on hover.
+  const guide = el("line", { x1: 0, x2: 0, y1: padT, y2: Hc - padB, class: "sc-guide", visibility: "hidden" });
+  const dot = el("circle", { cx: 0, cy: 0, r: 6, class: "sc-dot", visibility: "hidden" });
+  const tip = el("text", { x: 0, y: 0, class: "sc-tip", "text-anchor": "middle", visibility: "hidden" });
   const pick = (evt) => {
     const rect = svg.getBoundingClientRect();
     const frac = Math.min(1, Math.max(0, ((evt.clientX - rect.left) / rect.width * Wc - padL) / iw));
     const t = frac * (total - 1);
     let best = points[0];
     for (const p of points) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
-    guide.setAttribute("x1", x(best.t).toFixed(1));
-    guide.setAttribute("x2", x(best.t).toFixed(1));
-    els.strengthChartReadout.textContent = `Токен ${best.t + 1} из ${total} · доля по окну ${(best.v * 100).toFixed(1)}% · без метки ${(yLo * 100).toFixed(0)}%`;
+    const px = x(best.t);
+    const py = y(best.v);
+    guide.setAttribute("x1", px.toFixed(1));
+    guide.setAttribute("x2", px.toFixed(1));
+    guide.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", px.toFixed(1));
+    dot.setAttribute("cy", py.toFixed(1));
+    dot.setAttribute("visibility", "visible");
+    tip.textContent = `${(best.v * 100).toFixed(1)}%`;
+    tip.setAttribute("x", Math.min(Wc - padR - 36, Math.max(padL + 36, px)).toFixed(1));
+    tip.setAttribute("y", Math.max(padT + 16, py - 14).toFixed(1));
+    tip.setAttribute("visibility", "visible");
   };
   const reset = () => {
-    guide.setAttribute("x1", "0");
-    guide.setAttribute("x2", "0");
-    els.strengthChartReadout.textContent = defaultReadout;
+    for (const node of [guide, dot, tip]) node.setAttribute("visibility", "hidden");
   };
   svg.addEventListener("mousemove", pick);
   svg.addEventListener("mouseleave", reset);

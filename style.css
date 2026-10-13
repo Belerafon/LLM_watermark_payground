@@ -382,7 +382,17 @@ h1.hover-tip { display: inline-block; }
   stroke-linejoin: round;
 }
 .strength-chart .sc-guide { stroke: var(--text-muted); stroke-width: 1; opacity: 0.7; }
-.strength-chart-readout { min-height: 2.8em; margin: 0; color: var(--text); font-size: 13px; line-height: 1.4; }
+.strength-chart .sc-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.strength-chart .sc-tip {
+  fill: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
 .strength-chart-legend { margin: 5px 0 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.4; }
 
 .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--text-muted); min-width: 196px; justify-content: flex-end; }
