@@ -393,7 +393,6 @@ h1.hover-tip { display: inline-block; }
   stroke-width: 5px;
   stroke-linejoin: round;
 }
-.strength-chart-legend { margin: 5px 0 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.4; }
 
 .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--text-muted); min-width: 196px; justify-content: flex-end; }
 .legend.is-off { visibility: hidden; }
