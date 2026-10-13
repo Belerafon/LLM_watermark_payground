@@ -18,8 +18,8 @@ import {
   collectEnvironment,
   probeWasmHeapMB,
   createLog,
-} from "./models.js?v=7";
-import { expectedTournamentMean, layerWeights } from "./watermark.js?v=13";
+} from "./models.js";
+import { expectedTournamentMean, layerWeights } from "./watermark.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -128,10 +128,10 @@ function spawnWorker(meta) {
   const id = ++attemptSeq;
   const runtime = modelInfo(meta.modelId).runtime;
   const script = runtime === "v4"
-    ? "worker-v4.js?v=22"
+    ? "worker-v4.js"
     : runtime === "v4next"
-      ? "worker-next.js?v=8"
-      : "worker.js?v=21";
+      ? "worker-next.js"
+      : "worker.js";
   const worker = new Worker(script, { type: "module" });
   // Ignore events from a worker we already retired (a message can be queued before terminate()).
   worker.onmessage = (e) => {
