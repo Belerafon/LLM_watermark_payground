@@ -20,6 +20,7 @@ import {
   createLog,
 } from "./models.js";
 import { expectedTournamentMean, layerWeights } from "./watermark.js";
+import { displayParts } from "./output-text.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -94,6 +95,9 @@ let downloadingModel = false;
 let generating = false;
 let haveGeneration = false;
 let outputDirty = false;
+let outputEditVersion = 0;
+let detectionRequestId = 0;
+let pendingTextDetection = null;
 let lastPaint = null;
 let streamSpan = null;
 
@@ -526,7 +530,7 @@ function syncDetectUi() {
   const tip =
     `Ищет водяной знак в поле «Текст» выбранным способом: «${name}». Можно проверять созданный ответ, его отредактированную версию или вставленный текст.\n\n` +
     "Ключ берётся из поля «Ключ детектора». Длина контекста, число раундов турнира, доля зелёных и красный список — из настроек слева; используйте значения, с которыми текст помечали.\n\n" +
-    "Для вставленного текста проверяются первые 2000 токенов — слов или частей слов. Начало используется как контекст. Результат относится к правилу этой программы: чужую метку с неизвестными настройками она не распознает.";
+    "Для вставленного текста проверяются все токены (не более 200 000); подсвечиваются первые 2000. Начало используется как контекст. Результат относится к правилу этой программы: чужую метку с неизвестными настройками она не распознает.";
   if (els.detectTip) els.detectTip.dataset.tip = tip;
   if (els.detectModeHelp) els.detectModeHelp.dataset.tip = DETECT_HINT[mode] ?? "";
 }
@@ -535,6 +539,8 @@ const MODE_LABEL = { hard: "жёстким водяным знаком", soft: "
 
 function clearOutput() {
   outputDirty = false;
+  outputEditVersion++;
+  pendingTextDetection = null;
   els.placeholder.hidden = true;
   els.promptEcho.textContent = "";
   els.tokens.textContent = "";
@@ -651,7 +657,13 @@ function handleMessage(msg) {
     }
 
     case "detected": {
-      if (msg.tokens) renderTokenChips(msg.tokens);
+      if (msg.pasted) {
+        if (!pendingTextDetection || msg.requestId !== pendingTextDetection.id || outputEditVersion !== pendingTextDetection.editVersion) break;
+        renderTokenChips(msg.tokens, pendingTextDetection.text);
+        pendingTextDetection = null;
+      } else if (msg.tokens) {
+        renderTokenChips(msg.tokens);
+      }
       paintDetection(msg);
       if (msg.note) {
         els.verdictNote.textContent += msg.note;
@@ -936,9 +948,7 @@ async function copyWithFeedback(button, text) {
 
 /** Plain text of the answer as shown in the output card, without colours. */
 function outputPlainText() {
-  const echo = els.promptEcho.textContent;
-  const chips = Array.from(els.tokens.children).map((c) => c.textContent).join("");
-  return (echo + chips).trim();
+  return outputTextFromDom().trim();
 }
 
 /**
@@ -1356,7 +1366,10 @@ function paintDetection(msg) {
   renderStrengthChart(msg);
 }
 
-function renderTokenChips(tokens) {
+function renderTokenChips(tokens, originalText = null) {
+  const display = originalText === null
+    ? { colouredTokens: tokens, remainder: "" }
+    : displayParts(tokens, originalText);
   for (const node of [...els.output.childNodes]) {
     if (node !== els.placeholder && node !== els.promptEcho && node !== els.tokens) node.remove();
   }
@@ -1365,13 +1378,14 @@ function renderTokenChips(tokens) {
   els.tokens.textContent = "";
   if (els.copyOutput) els.copyOutput.disabled = tokens.length === 0;
   setLegend(false);
-  for (const tok of tokens) {
+  for (const tok of display.colouredTokens) {
     const span = document.createElement("span");
     span.className = "tok";
     span.textContent = tok.text;
     span.title = `Токен — фрагмент текста: слово, часть слова или знак препинания. Номер в словаре модели: ${tok.id}.`;
     els.tokens.appendChild(span);
   }
+  if (display.remainder) els.tokens.appendChild(document.createTextNode(display.remainder));
 }
 
 els.colorText.addEventListener("change", () => {
@@ -1382,8 +1396,42 @@ els.colorText.addEventListener("change", () => {
 els.output.addEventListener("pointerdown", () => {
   if (!els.placeholder.hidden) els.placeholder.hidden = true;
 });
+els.output.addEventListener("beforeinput", (event) => {
+  if (!event.cancelable || !event.inputType.startsWith("delete") || !els.tokens.querySelector(".tok")) return;
+  const selection = getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (range.collapsed) return;
+  const insideTokens = (node) => node === els.tokens || els.tokens.contains(node);
+  if (!insideTokens(range.startContainer) || !insideTokens(range.endContainer)) return;
+
+  // Deleting across thousands of token spans makes contenteditable stall.
+  // Convert them to one text node first, keeping the exact selection.
+  const offset = (node, position) => {
+    const prefix = document.createRange();
+    prefix.setStart(els.tokens, 0);
+    prefix.setEnd(node, position);
+    return prefix.toString().length;
+  };
+  const start = offset(range.startContainer, range.startOffset);
+  const end = offset(range.endContainer, range.endOffset);
+  const value = els.tokens.textContent;
+  const plain = document.createTextNode(value.slice(0, start) + value.slice(end));
+  event.preventDefault();
+  els.tokens.replaceChildren(plain);
+  const newRange = document.createRange();
+  newRange.setStart(plain, start);
+  selection.removeAllRanges();
+  selection.addRange(newRange);
+  outputDirty = true;
+  outputEditVersion++;
+  els.placeholder.hidden = true;
+  if (els.copyOutput) els.copyOutput.disabled = !plain.data.trim();
+  updateButtons();
+});
 els.output.addEventListener("input", () => {
   outputDirty = true;
+  outputEditVersion++;
   els.placeholder.hidden = true;
   updateButtons();
 });
@@ -1400,11 +1448,11 @@ els.output.addEventListener("paste", (e) => {
     sel.collapseToEnd();
   }
   outputDirty = true;
+  outputEditVersion++;
   updateButtons();
 });
 
-function textToCheck() {
-  if (!outputDirty) return "";
+function outputTextFromDom() {
   // Walk the DOM instead of innerText: innerText collapses runs of spaces
   // and drops leading indentation, which changes code tokens (e.g. Python).
   let out = "";
@@ -1426,11 +1474,17 @@ function textToCheck() {
   return out.trim() ? out : "";
 }
 
+function textToCheck() {
+  return outputDirty ? outputTextFromDom() : "";
+}
+
 els.detectBtn.addEventListener("click", () => {
   const text = textToCheck();
   if (text) {
+    const requestId = ++detectionRequestId;
+    pendingTextDetection = { id: requestId, editVersion: outputEditVersion, text };
     setStatus("Проверяю вставленный текст…");
-    send({ type: "detectText", text, params: detectParams() });
+    send({ type: "detectText", text, requestId, params: detectParams() });
     return;
   }
   if (!haveGeneration) {

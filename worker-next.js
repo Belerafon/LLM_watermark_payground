@@ -551,7 +551,7 @@ function tokenChips(ids) {
   return ids.map((id) => ({ id, text: tokenizer.decode([id], { skip_special_tokens: false }) }));
 }
 
-function detectPasted(text, p) {
+function detectPasted(text, p, requestId) {
   if (!tokenizer) {
     post({ type: "error", phase: "detect", kind: "other", raw: "Модель ещё не загружена.", modelId, device, dtype, log: log.entries() });
     return;
@@ -592,6 +592,7 @@ function detectPasted(text, p) {
     const promptLen = Math.min(h, Math.max(0, ids.length - 1));
     lastGen = { ids, promptLen };
     runDetect(p, {
+      requestId,
       tokens: tokenChips(ids.slice(0, CHIPS_CAP)),
       colorFrom: promptLen,
       pasted: true,
@@ -679,7 +680,7 @@ self.onmessage = async (e) => {
       runDetect(msg.params);
       break;
     case "detectText":
-      detectPasted(msg.text, msg.params);
+      detectPasted(msg.text, msg.params, msg.requestId);
       break;
     case "interrupt":
       stoppingCriteria.interrupt();

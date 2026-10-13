@@ -34,7 +34,7 @@ jobs:
           node-version: 22
 
       - name: Tests
-        run: node --test tests/watermark.test.mjs
+        run: node --test tests/*.test.mjs
 
       - name: Stamp version.json with the deployed commit
         run: |
