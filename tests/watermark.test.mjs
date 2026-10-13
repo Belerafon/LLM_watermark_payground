@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   detect, detectTournament, expectedTournamentMean, expectedMeanGValue, gValue,
   isGreen, keyToSeed, layerWeights, meanScore, normalCdf, sampleMultinomial,
-  seededRng, seedFromContext, tournamentSample, weightedMeanScore,
+  seededRng, seedFromContext, tournamentSample, weightedMeanScore, weightedZScore,
 } from "../watermark.js";
 
 const params = { gamma: 0.5, m: 15, h: 1, keySeed: keyToSeed("test-key") };
@@ -124,9 +124,54 @@ test("detectTournament applies the official scores to the official mask", () => 
   assert.equal(r.meanG, meanScore(gValues, mask));
   assert.equal(r.weightedMeanG, weightedMeanScore(gValues, mask));
   assert.equal(r.mask.join(","), mask.join(","));
+  // The verdict statistic is the weighted z over the same matrix.
+  assert.ok(Math.abs(r.z - weightedZScore(gValues, mask)) < 1e-12);
   assert.ok(Math.abs(r.expectedG - (0.5 + 0.25 * (1 - 1 / 1000))) < 1e-12);
   assert.equal(r.expectedSource, "official");
   assert.ok(r.weightedMeanG > 0.5);
+});
+
+test("weightedZScore with uniform weights equals the plain mean z-test", () => {
+  const rng = seededRng(5);
+  const m = 12;
+  const g = Array.from({ length: 90 }, () => Array.from({ length: m }, () => Math.round(rng())));
+  const mask = Array.from({ length: 90 }, () => (rng() < 0.85 ? 1 : 0));
+  mask[0] = 1;
+  let T = 0;
+  let sumG = 0;
+  for (let i = 0; i < g.length; i++) {
+    if (!mask[i]) continue;
+    T++;
+    for (const v of g[i]) sumG += v;
+  }
+  const plain = (sumG - (T * m) / 2) / Math.sqrt((T * m) / 4);
+  assert.ok(Math.abs(weightedZScore(g, mask, Array(m).fill(1)) - plain) < 1e-12);
+});
+
+test("weightedZScore standardises the weighted sum under the null", () => {
+  const g = [[1, 0], [0, 1], [1, 1]];
+  const mask = [1, 0, 1];
+  // Weights [10, 1] normalised to sum 2: ŵ = [20/11, 2/11].
+  // S = (20/11)·(1+1) + (2/11)·(0+1) = 42/11; E[S] = 2; Var = 2·(404/121)/4.
+  const expected = (42 / 11 - 2) / Math.sqrt((2 * (404 / 121)) / 4); // = 20/√202
+  assert.ok(Math.abs(weightedZScore(g, mask, [10, 1]) - expected) < 1e-12);
+  assert.equal(weightedZScore([], []), 0);
+  assert.equal(weightedZScore(g, [0, 0, 0]), 0);
+});
+
+test("weighted z rewards early-layer signal more than the plain mean z", () => {
+  const rng = seededRng(11);
+  const m = 10;
+  const T = 300;
+  const g = Array.from({ length: T }, () => {
+    const row = Array.from({ length: m }, () => Math.round(rng()));
+    row[0] = 1; // all the signal sits in the first tournament round
+    return row;
+  });
+  const mask = Array(T).fill(1);
+  const weighted = weightedZScore(g, mask);
+  const uniform = weightedZScore(g, mask, Array(m).fill(1));
+  assert.ok(weighted > uniform + 1, `weighted ${weighted} should beat uniform ${uniform}`);
 });
 
 test("detectTournament falls back to the synthetic reference without a vocab size", () => {
@@ -218,7 +263,10 @@ test("empty verdicts show no NaN, Infinity or false detection", () => {
 test("verdict and its tooltip describe the same signal and explain repetitions", () => {
   const result = detectTournament(Array(201).fill(10), 1, params);
   const node = render({ ...params, ...result, scheme: "tournament" });
-  assert.match(node("verdictNote").textContent, /исключено 199/);
+  // Not enough data → short operational note, no wall of text.
+  assert.match(node("verdictNote").textContent, /Данных мало/);
+  // The repetition accounting lives in the green-score tooltip.
+  assert.match(node("tip-green").dataset.tip, /Учтено 1 из 200[\s\S]*повторяющийся контекст/i);
   assert.match(node("verdict-note").dataset.tip, /Оценка 1 даёт преимущество/);
   assert.doesNotMatch(node("verdict-note").dataset.tip, /Порог z|пересказывает z/);
   assert.match(node("verdictConf").dataset.tip, /не вероятность авторства/);
@@ -249,8 +297,9 @@ test("strong statistical evidence is not hidden by reference levels (T=500, m=30
   });
   assert.equal(node("verdictLabel").textContent, "Сильный сигнал метки");
   assert.ok(meterWidth(node) > 95); // z = 7.35 saturates the conditional scale
-  // The preliminary (nominal-threshold) character of the verdict is stated.
-  assert.match(node("verdictNote").textContent, /номинальные/);
+  // The note stays short; the nominal-thresholds caveat lives on the z tooltip.
+  assert.doesNotMatch(node("verdictNote").textContent, /номинальные/);
+  assert.match(node("tip-z").dataset.tip, /номинальные/);
 });
 
 test("long texts near the null level show no expressed signal (both schemes)", () => {
@@ -293,7 +342,7 @@ test("repeated contexts do not inflate confidence", () => {
   const node = render({ ...params, ...result, scheme: "tournament" });
   assert.equal(node("verdictLabel").textContent, "Мало данных для вывода");
   assert.ok(meterWidth(node) < 10);
-  assert.match(node("verdictNote").textContent, /исключено 199/);
+  assert.match(node("verdictNote").textContent, /Данных мало/);
 });
 
 test("negative z shows no positive evidence for both schemes", () => {
@@ -384,6 +433,15 @@ test("the badge shows only the strength percent; z lives in the stats table", ()
   assert.equal(node("statZ").textContent, "2.20"); // z stays in the stats row
   assert.ok(node("verdictConf").dataset.tip.length > 0);
   assert.equal(node("copyVerdict").disabled, false); // copy action unlocks with the verdict
+});
+
+test("the visible note is one short operational line, not a wall of text", () => {
+  const repeats = render({ scheme: "tournament", T: 300, totalT: 400, m: 15, h: 1, gamma: 0.5, meanG: 0.5, weightedMeanG: 0.5, z: 2.5, pValue: 0.006, expectedG: 0.75, expectedSource: "official" });
+  assert.equal(repeats("verdictNote").textContent, "Исключено повторных контекстов: 100.");
+  const clean = render({ scheme: "greenlist", T: 300, totalT: 300, gamma: 0.5, h: 1, greenCount: 150, z: 0, pValue: 0.5 });
+  assert.equal(clean("verdictNote").hidden, true); // nothing operational to say
+  const warn = render({ scheme: "tournament", T: 3, totalT: 3, m: 15, h: 1, gamma: 0.5, meanG: 1, weightedMeanG: 1, z: 9, pValue: 0, expectedG: 0.75, expectedSource: "official" });
+  assert.match(warn("verdictNote").textContent, /Данных мало/);
 });
 
 test("null z is approximately standard normal across random unmarked sequences", () => {

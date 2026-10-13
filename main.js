@@ -623,7 +623,10 @@ function handleMessage(msg) {
     case "detected": {
       if (msg.tokens) renderTokenChips(msg.tokens);
       paintDetection(msg);
-      if (msg.note) els.verdictNote.textContent += msg.note;
+      if (msg.note) {
+        els.verdictNote.textContent += msg.note;
+        els.verdictNote.hidden = false;
+      }
       if (msg.pasted) {
         outputDirty = false;
         haveGeneration = (msg.tokens?.length ?? 0) > 0;
@@ -995,16 +998,14 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, me
 
   const repeatNote = totalT > T
     ? (tournament
-      ? ` Повторяющиеся контексты учтены один раз: исключено ${totalT - T}.`
-      : ` Повторных сочетаний исключено: ${totalT - T}.`)
+      ? `Исключено повторных контекстов: ${totalT - T}.`
+      : `Исключено повторных сочетаний: ${totalT - T}.`)
     : "";
-  const note = (tournament
-    ? `Взвешенное среднее g-оценок (Weighted Mean, официальный скоринг SynthID): ${(g * 100).toFixed(1)}%. Простое среднее: ${(plainMean * 100).toFixed(1)}%. Без метки ожидается около 50%. Учтено токенов: ${T}, раундов на токен: ${m}.`
-    : `Зелёных токенов: ${T ? (greenCount / T * 100).toFixed(1) : "0"}%; без метки ожидается около ${(gammaVal * 100).toFixed(1)}%. Учтено токенов: ${T}.`)
-    + repeatNote
-    + (ready && zVal >= 2
-      ? " Вердикт определяется порогами z ≥ 2 и z ≥ 4; пороги номинальные: реальную частоту ложных срабатываний оценивают на корпусе немаркированных текстов."
-      : "");
+  // The note stays minimal: every number and caveat already lives in the
+  // stats table and its tooltips. Only operational facts are shown here.
+  const note = !ready
+    ? "Данных мало: результат может сильно измениться при добавлении текста."
+    : repeatNote;
 
   els.verdictLabel.textContent = labels[0];
   els.verdictLabel.className = `verdict-label ${labels[1]}`;
@@ -1025,6 +1026,7 @@ function renderVerdict({ scheme, z, pValue, greenCount, T, totalT = T, gamma, me
   els.statMean.textContent = `${(plainMean * 100).toFixed(1)}%`;
   els.statZ.textContent = T ? zVal.toFixed(2) : "—";
   els.statP.textContent = T ? fmtP(pValue) : "—";
+  els.verdictNote.hidden = !note;
   els.verdictNote.textContent = note;
   setVerdictTips({ tournament, z: zVal, pValue, greenCount, T, totalT, gamma: gammaVal, meanG: plainMean, weightedMeanG: g, m, h, ready, reference, expectedSource });
 }
